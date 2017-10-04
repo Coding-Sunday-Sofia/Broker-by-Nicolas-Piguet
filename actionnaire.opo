@@ -1,0 +1,2788 @@
+rem =====================================
+rem = This UID can be used exclusively  =
+rem =   with the standard vesrion of    =
+rem = this application. You must obtain =
+rem = your own UID for any non-standard =
+rem =   version from uid@symbian.com    =
+rem =====================================
+app Action,&1000A926
+	rem KUidNicolasPiguet
+	icon "c:\documents\opl\actionnaire\icon.mbm"
+	flags 1
+enda
+include "const.oph"
+include "system.oxh"
+include "actionnaire.osg"
+proc intro:
+	loadm "z:\system\opl\toolbar.opo"
+	tbarlink:("start")
+endp
+proc start:
+	global cardused%(2,2,6), boardwidth%, boardheight%
+	global card$(67,18), cardtaken%(67), risklegend$(5,19,50)
+	global red%(5), green%(5), blue%(5), width%, height%
+	global compvalue%(5), compsup%(5)
+	global playercash(2), computercash, playerowns(2,5)
+	global firsttimeofturn%, cardwin%, wininuse%, cartepiochee%
+	global atstartofturn&(5), compmax&(5), cardplayed%(2)
+	global computercard%(5), computerowns(5), aicurrent%
+	global AIcardsleft%, AIpreviouswasrisk%, numbercardstaken%
+	global filename$(255), helpthread&, AIlevel%, plyr%
+	global playername$(2,10), gametype%, ressourcehandle&
+	global menu$(50), colormode%, screentype%
+	local ev&(16), startpenx%, startpeny%, menu%
+	local startposx%, startposy%, provnum%, off%(6)
+	local command$(255), editalreadyon%, iralreadyon%
+	local	menualreadyon%, colorinfo&(7)
+	ressourcehandle&=loadrsc&:("c:\system\apps\actionnaire\actionnaire.rsc")
+	busy "Initialisation"
+	onerr colorerror::
+	gcolorinfo colorinfo&()
+	onerr off
+	if colorinfo&(2)=0
+		colorerror::
+		onerr off
+		colormode%=2
+	elseif colorinfo&(2)>0
+		colormode%=5
+	endif
+	if gheight=160 and gwidth=480
+		screentype%=1
+	elseif gheight=240 and gwidth=640
+		screentype%=2
+	endif
+	defaultwin colormode%
+	drawsplash:
+	menu$="_o_s^S_q_n_v_l_f_a^A"
+	randomize second*minute
+	gborder 0
+	red%(1)=204 :red%(2)=51 :red%(3)=0 :red%(4)=128 :red%(5)=51
+	green%(1)=0 :green%(2)=51 :green%(3)=51 :green%(4)=128 :green%(5)=102
+	blue%(1)=0 :blue%(2)=103 :blue%(3)=153 :blue%(4)=0 :blue%(5)=153
+	width%=gwidth
+	height%=gheight
+	cardsini:
+	setvaluesfornewgame:
+	busy off
+	getevent32 ev&()
+	busy readrsc$:(chargement_&)
+	if cmd$(3)="O"
+		filename$=cmd$(2)
+		opendoc:(cmd$(2))
+	elseif cmd$(3)="R"
+		off%(1)=runini%:(cmd$(2))
+		if off%(1)=1
+			choosegametype%:(1)
+			setvaluesfornewgame:
+			loadnewgame:
+			savedoc:(filename$)
+		endif
+	elseif cmd$(3)="C"
+		filename$=cmd$(2)
+		choosegametype%:(1)
+		savedoc:(filename$)
+		loadnewgame:
+	endif
+	tbarinit:("Actionnaire",width%,height%)
+	tbarbutt:("a",1,ReadRsc$:(tbar11_&)+chr$(10)+ReadRsc$:(tbar12_&),0,&0,&0,0)
+	tbarbutt:("b",2,ReadRsc$:(tbar21_&)+chr$(10)+ReadRsc$:(tbar22_&),0,&0,&0,0)
+	tbarbutt:("c",3,ReadRsc$:(tbar31_&),0,&0,&0,0)	
+	tbarsettitle:(right$(parse$(filename$,"",off%()),len(filename$)-off%(4)+1))
+	tbarshow:
+	gorder 7,6
+	gorder 1,7
+	rem === effacement de la carte déjà jouée ===
+	finalfirstload:
+	busy off
+	while 1
+		getevent32 ev&()
+		if ev&(1)=&408
+			if ev&(3)>=2 and ev&(3)<=6
+				if ev&(4)=0
+					guse ev&(3)
+					wininuse%=ev&(3)
+					startposx%=ev&(8)-ev&(6)
+					startposy%=ev&(9)-ev&(7)
+					startpenx%=ev&(8)
+					startpeny%=ev&(9)
+				elseif ev&(4)=6
+					gsetwin startposx%+ev&(8)-startpenx%,startposy%+ev&(9)-startpeny%
+				elseif ev&(4)=1
+					if ev&(8)<=344 and ev&(8)>=284 and 75<=ev&(9) and ev&(9)<=155
+						if cardplayed%(1)=1
+							giprint ReadRsc$:(cartejouee_&)
+							goto replacecard::
+						endif
+						if (cardused%(plyr%,2,2)+cardused%(plyr%,2,3)+cardused%(plyr%,2,4)+cardused%(plyr%,2,5)+cardused%(plyr%,2,6))>=1 and cardused%(plyr%,2,wininuse%)=0
+							giprint ReadRsc$:(jouercarterisque_&)
+							goto replacecard::
+						endif
+						guse 1
+						gat 284,75
+						gcopy wininuse%,0,0,60,80,3
+						gclose wininuse%
+						cardplayed%(1)=1
+						cardplayed%(2)=wininuse%
+						if cardused%(plyr%,1,wininuse%)<100
+							changeboardvalues:(card$(cardused%(plyr%,1,wininuse%)))
+						else
+							changeboardvalues:(card$(cardused%(plyr%,1,wininuse%)-100))
+						endif
+						payerdividendes:
+						printinfodisplay:
+					else
+						if wininuse%<=6
+							replacecard::
+							gsetwin 10,10+(height%-20-80)*(wininuse%-2)/4
+						endif
+					endif
+				endif
+			elseif ev&(3)=7
+				tbaroffer%:(ev&(3),ev&(4),ev&(6),ev&(7))
+			endif
+		elseif (ev&(1) and &400)=0
+			if ev&(1)=4150
+				rem ===la touche "menu" a été pressée
+				menu%:(menu%)
+			else
+				detectshortcut:(ev&(1),ev&(4))
+			endif
+		elseif ev&(1)=&404
+			command$=getcmd$
+			if left$(command$,1)="X"
+				savedoc:(filename$)
+				procq:
+			elseif left$(command$,1)="O"
+				command$=mid$(command$,2,254)
+				savedoc:(filename$)
+				trap close
+				opendoc:(command$)
+				filename$=command$
+			elseif left$(command$,1)="C"
+				command$=mid$(command$,2,254)
+				savedoc:(filename$)
+				trap close
+				filename$=command$
+				choosegametype%:(1)
+				setvaluesfornewgame:
+				savedoc:(filename$)
+				loadnewgame:
+			endif
+		elseif ev&(1)>=1000 and ev&(1)<=10004
+			editalreadyon%=0
+			iralreadyon%=0
+			menualreadyon%=0
+			if (ev&(1)=1000 and Menualreadyon%=1) or (ev&(1)=10001 and editalreadyon%=1) or (ev&(1)=10002 and iralreadyon%=1)
+				editalreadyon%=0
+				menualreadyon%=0
+				iralreadyon%=0
+			elseif ((ev&(1)=10000) or (ev&(1)=1031 and ev&(3)=10000)) and menualreadyon%=0
+				editalreadyon%=0
+				menualreadyon%=0
+				iralreadyon%=0
+				ev&(1)=0
+				ev&(3)=0
+				menu%:(menu%)
+			elseif (ev&(1)=10001 and editalreadyon%=0)
+				rem cut copy paste
+				giprint ReadRsc$:(pasoption_&)
+				editalreadyon%=0
+				menualreadyon%=0
+				iralreadyon%=0
+			elseif ev&(1)=10002 and iralreadyon%=0
+				rem infrared send and recieve
+				giprint ReadRsc$:(pasoption_&)
+				editalreadyon%=0
+				menualreadyon%=0
+				iralreadyon%=0
+			elseif ev&(1)=10003
+				giprint ReadRsc$:(pasoption_&)
+				editalreadyon%=0
+				menualreadyon%=0
+				iralreadyon%=0
+			elseif ev&(1)=10004
+				giprint ReadRsc$:(pasoption_&)
+				editalreadyon%=0
+				menualreadyon%=0
+				iralreadyon%=0
+			endif
+		endif
+	endwh
+endp
+proc detectshortcut:(key&,modifier&)
+	local modif%, location%
+	modif%=modifier&
+	if modif%>=128
+		goto fin::
+	else
+		if modif%>=16
+			modif%=modif%-16
+		endif
+		if modif%=4
+			location%=loc(ReadRsc$:(menushortcut_&),"_"+chr$(key&+64))
+			if location%<>0
+				@("proc"+mid$(menu$,location%+1,1)):
+			endif
+		elseif modif%=6
+			location%=loc(ReadRsc$:(menushortcut_&),"^"+chr$(key&+64))
+			if location%<>0
+				@("prom"+mid$(menu$,location%+1,1)):
+			endif
+		endif
+	endif
+	fin::
+endp
+proc replaceplayedcard:
+	local window%
+	window%=gcreate(10,10+(height%-20-80)*(cardplayed%(2)-2)/4,60,80,0,$100+colormode%)
+	if cardused%(plyr%,1,window%)<100
+		drawcard:(card$(cardused%(plyr%,1,window%)),cardused%(plyr%,1,window%),window%)
+		gorder window%,7-window%
+	elseif cardused%(plyr%,1,window%)>=100
+		drawrisk:(card$(cardused%(plyr%,1,window%)-100),cardused%(plyr%,1,window%)-100,window%)
+		gorder window%,1
+	endif
+	guse window%
+	gvisible on
+	guse 1
+	gat 284,75
+	gcolor 255,255,255
+	gfill 60,80,0
+	gborder $200,60,80
+endp
+proc keyfor%:(prog%)
+	local key%, location%
+	if prog%>=97 and prog%<=122
+		location%=loc(menu$,"_"+chr$(prog%))
+		key%=asc(mid$(ReadRsc$:(menushortcut_&),location%+1,1))
+	elseif prog%>=65 and prog%<=90
+		location%=loc(menu$,"^"+chr$(prog%))
+		key%=asc(mid$(ReadRsc$:(menushortcut_&),location%+1,1))
+	endif
+	return key%
+endp
+proc menu%:(menu%)
+	local item%, init%, location%, key%
+	init%=menu%
+	minit
+	mcard ReadRsc$:(menufichier_&),ReadRsc$:(menuouvrir_&),keyfor%:(%o),ReadRsc$:(menusauver_&),keyfor%:(%s),\
+	ReadRsc$:(menusauversous_&),-(keyfor%:(%S)),ReadRsc$:(menuquitter_&),keyfor%:(%q)
+	mcard ReadRsc$:(menujeu_&),ReadRsc$:(menunouveaujeu_&),-(keyfor%:(%n)),ReadRsc$:(menuacheter_&),keyfor%:(%v),\
+	ReadRsc$:(menusplit_&),keyfor%:(%l),ReadRsc$:(menufindutour_&),keyfor%:(%f)
+	mcard ReadRsc$:(menuoutils_&),ReadRsc$:(menuapropos_&),keyfor%:(%a),ReadRsc$:(menuaide_&),keyfor%:(%A)
+	item%=menu(init%)
+	if item%>=97 and item%<=122
+		location%=loc(ReadRsc$:(menushortcut_&),"_"+chr$(item%))
+		key%=asc(mid$(menu$,location%+1,1))
+	elseif item%>=65 and item%<=90
+		location%=loc(ReadRsc$:(menushortcut_&),"^"+chr$(item%))
+		key%=asc(mid$(menu$,location%+1,1))
+	endif
+	if key%>=%a and key%<=%z
+		@("proc"+chr$(key%)):
+	elseif key%>=%A and key%<=%Z
+		@("prom"+chr$(key%)):
+	endif
+	return init%
+endp
+proc procv:
+	buysellactions:(firsttimeofturn%)
+endp
+proc choosegametype%:(pathalreadyselected%)
+	local ek%
+	key
+	if pathalreadyselected%=0
+		procn:
+		goto fin::
+	endif
+	dialog::
+	dinit ReadRsc$:(gametypechoice_&)
+	dchoice gametype%,ReadRsc$:(gametype1_&),ReadRsc$:(gametype2_&)
+	dchoice Ailevel%,ReadRsc$:(ailevel_&),ReadRsc$:(levels_&)
+	dbuttons ReadRsc$:(annuler_&),-27,"OK",13
+	ek%=dialog
+	if ek%=0
+		goto dialog::
+	endif
+	playername$(1)=readRsc$:(defaultpnameai_&)
+	playername$(2)="EPOC"
+	if gametype%=2
+		playername$(1)=ReadRsc$:(defaultpname_&)+" 1"
+		playername$(2)=ReadRsc$:(defaultpname_&)+" 2"
+		dinit ReadRsc$:(playernames_&)
+		dedit playername$(1),ReadRsc$:(nameofplayer_&)+" 1",10
+		dedit playername$(2),ReadRsc$:(nameofplayer_&)+" 2",10
+		dbuttons ReadRsc$:(Annuler_&),-27,"OK",13
+		ek%=dialog
+	endif
+	fin::
+endp
+proc procl:
+	cmdc%:
+endp
+proc procf:
+	cmdb%:
+endp
+proc drawcard:(string$,carte%,win%)
+	local bitmap1%, compid%, upvalue$(3), downvalue$(3)
+	local isgoingup%, shapeofother%
+	compid%=eval(mid$(card$(carte%),2,1))
+	upvalue$=mid$(card$(carte%),3,3)
+	downvalue$=mid$(card$(carte%),6,3)
+	isgoingup%=eval(mid$(card$(carte%),9,1))
+	shapeofother%=eval(right$(card$(carte%),1))
+	bitmap1%=gloadbit("c:\system\apps\actionnaire\logos.mbm",0,compid%-1)
+	guse win%
+	gborder $200,60,80
+	gmove 4,48
+	glineby 53,0
+	gmove -53,-31
+	glineby 53,0
+	gmove -13,20
+	if isgoingup%=1
+		gcolor red%(compid%),green%(compid%),blue%(compid%)
+	else
+		gcolor 0,0,0
+	endif
+	grandeflechehaut:
+	if isgoingup%=1
+		gcolor 0,0,0
+	else
+		gcolor red%(compid%),green%(compid%),blue%(compid%)
+	endif
+	gmove -6,20
+	grandeflechebas:
+	gcolor 0,0,0
+	if isgoingup%=1
+		if shapeofother%=1
+			gmove -30,-8
+			quadruplerond:
+		else
+			gmove -30,-3
+			simplerond:
+			gmove 4,0
+		endif
+	else
+		gmove -45,-18
+		gcopy bitmap1%,0,0,30,30,0
+		gmove 20,15
+	endif
+	gmove -20,-46
+	if isgoingup%=1
+		gmove 2,0
+		gcopy bitmap1%,0,0,30,30,0
+	else
+		if shapeofother%=1
+			gmove 15,10
+			quadruplerond:
+			gmove -20,-15
+		else
+			gmove 14,15
+			simplerond:
+			gmove -13,-15
+		endif
+	endif
+	gmove 32,10
+	gfont kfontarialnormal8&
+	gprintb upvalue$,20,3,0,0,0
+	gmove 0,49
+	gprintb downvalue$,20,3,0,0,0
+	gclose bitmap1%
+	gmove -35,-65
+	gstyle 32
+	gmove -2,0
+	gprintclip(compname$:(compid%),30)
+	gstyle 0
+	gmove 2,-5
+	gcolor red%(compid%),green%(compid%),blue%(compid%)
+	if isgoingup%=1
+		petiteflèchehaut:
+		gmove 0,7
+	else
+		petiteflechebas:
+	endif
+	gcolor 0,0,0
+	gmove 3,1
+	if isgoingup%=1
+		gprint upvalue$
+	else
+		gprint downvalue$
+	endif
+endp
+proc grandeflechehaut:
+	gfill 10,10,0
+	gmove -3,0
+	glineby 8,-8
+	glineby 8,8
+	glineby -16,0
+	gmove 1,-1
+	glineby 14,0
+	gmove -1,-1
+	glineby -12,0
+	gmove 1,-1
+	glineby 10,0
+	gmove -1,-1
+	glineby -8,0
+	gmove 1,-1
+	glineby 6,0
+	gmove -1,-1
+	glineby -4,0
+	gmove 1,-1
+	glineby 2,0
+endp
+proc grandeflechebas:
+	gfill 10,10,0
+	gmove -3,10
+	glineby 8,8
+	glineby 8,-8
+	glineby -16,0
+	gmove 1,1
+	glineby 14,0
+	gmove -1,1
+	glineby -12,0
+	gmove 1,1
+	glineby 10,0
+	gmove -1,1
+	glineby -8,0
+	gmove 1,1
+	glineby 6,0
+	gmove -1,1
+	glineby -4,0
+	gmove 1,1
+	glineby 2,0
+endp
+proc simplerond:
+	gcircle 8,1
+endp
+proc quadruplerond:
+	gcircle 3,1
+	gmove -5,5
+	gcircle 3,1
+	gmove 5,5
+	gcircle 3,1
+	gmove 5,-5
+	gcircle 3,1
+endp
+proc petiteflechehaut:
+	gfill 5,6,0
+	gmove -2,0
+	glineby 4,-4
+	glineby 4,4
+	glineby -8,0
+	gmove 1,-1
+	glineby 6,0
+	gmove -1,-1
+	glineby -4,0
+	gmove 1,-1
+	glineby 2,0
+endp
+proc petiteflechebas:
+	gmove 0,-4
+	gfill 5,5,0
+	gmove -2,5
+	glineby 4,4
+	glineby 4,-4
+	glineby -8,0
+	gmove 1,1
+	glineby 6,0
+	gmove -1,1
+	glineby -4,0
+	gmove 1,1
+	glineby 2,0
+endp
+proc compname$:(compid%)
+	if compid%=1
+		return "Tobler"
+	elseif compid%=2
+		return "GM"
+	elseif compid%=3
+		return "BBC"
+	elseif compid%=4
+		return "Ciba-Geigy"
+	elseif compid%=5
+		return "SBS"
+	endif
+endp
+proc drawboard:(st1%,nd2%,rd3%,th4%,th5%)
+	local provnum%, prov2%, piocheheight%
+	if screentype%=1poioboa0height%/6
+	glineby boardwidth%-1,0
+	gmove 0,Boardheight%/6
+	glineby -boardwidth%+1,0
+	gmove 0,Boardheight%/6
+	glineby boardwidth%-1,0
+	gmove 0,Boardheight%/6
+	glineby -boardwidth%+1,0
+	gmove 0,Boardheight%/6
+	glineby boardwidth%-1,0
+	gat 92,10
+	gmove 3,9
+	gfont 4 :gstyle 32
+	gcolor red%(1),green%(1),blue%(1)
+	gprintb "Tobler",40,3,0,0,0
+	gmove 0,boardheight%/6
+	gcolor red%(2),green%(2),blue%(2)
+	gprintb "GM",40,3,0,0,0
+	gmove 0,boardheight%/6
+	gcolor red%(3),green%(3),blue%(3)
+	gprintb "BBC",40,3,0,0,0
+	gmove 0,boardheight%/6
+	gcolor red%(4),green%(4),blue%(4)
+	gprintb "Ciba",40,3,0,0,0
+	gmove 0,boardheight%/6
+	gcolor red%(5),green%(5),blue%(5)
+	gprintb "SBS",40,3,0,0,0
+	gmove 0,1
+	gcolor 0,0,0
+	gfill 49,boardheight%/6,0
+	gmove -1,0
+	glineby 0,boardheight%/6-1
+	gmove -1,-2
+	glineby 0,-boardheight%/6+3
+	gat 144,10
+	glineby 0,boardheight%
+	gat 135,10
+	provnum%=0
+	do
+		provnum%=provnum%+1
+		glineby 7,boardheight%/12
+		glineby -7,boardheight%/12
+		gmove 1,-boardheight%/6+1
+		glineby 8,0
+		gmove -6,1
+		glineby 6,0
+		gmove -5,1
+		glineby 5,0
+		gmove -3,1
+		glineby 3,0
+		gmove -2,1
+		glineby 2,0
+		gmove -3,1
+		glineby 3,0
+		gmove -5,1
+		glineby 5,0
+		gmove -6,1
+		glineby 6,0
+		gmove -8,1
+		glineby 8,0
+		gmove -9,1
+	until provnum%=5
+	gat 145,11
+	provnum%=0
+	do
+		provnum%=provnum%+1
+		prov2%=0
+		do
+			prov2%=prov2%+1
+			gcolor 255,193,142
+			if provnum%=6
+				gfill (boardwidth%-53)/25,boardheight%/6-2,0
+			else
+				gfill (boardwidth%-53)/25,boardheight%/6-1,0
+			endif
+			gmove (boardwidth%-53)/25,0
+			gcolor 255,255,255
+			if provnum%=6
+				gfill (boardwidth%-53)/25,boardheight%/6-2,0
+			else
+				gfill (boardwidth%-53)/25,boardheight%/6-1,0
+			endif
+			gmove (boardwidth%-53)/25,0
+		until prov2%=12
+		gcolor 255,193,142
+		if provnum%=6
+			gfill (boardwidth%-53)/25,boardheight%/6-2,0
+		else
+			gfill (boardwidth%-53)/25,boardheight%/6-1,0
+		endif
+		gat 145,10+boardheight%/6*provnum%+1
+	until provnum%=6
+	gat 244,10
+	gcolor 0,0,0
+	glineby 0,boardheight%
+	gat 234,10
+	gcolor 0,0,0
+	glineby 0,boardheight%
+	gat 395,10
+	provnum%=0
+	do
+		provnum%=provnum%+1
+		glineby 10,5
+		glineby -10,5
+	until provnum%=5
+	gat 397,11
+	provnum%=0
+	do
+		provnum%=provnum%+1
+		glineby 8,0
+		gmove -6,1
+		glineby 6,0
+		gmove -5,1
+		glineby 5,0
+		gmove -3,1
+		glineby 3,0
+		gmove -2,1
+		glineby 2,0
+		gmove -3,1
+		glineby 3,0
+		gmove -5,1
+		glineby 5,0
+		gmove -6,1
+		glineby 6,0
+		gmove -8,1
+		glineby 8,0
+		gmove -8,2
+	until provnum%=5
+	gmove -2,0
+	gfill 9,9,0
+	gmove 9,0
+	glineby 0,8
+	gmove -9,0
+	glineby 0,-boardheight%
+	gat 132,120
+	gstyle 0 :gfont 13
+	gat 144,64
+	provnum%=0
+	do
+		provnum%=provnum%+1
+		glineby 5,5
+		glineby 5,-5
+		gmove -9,1
+		glineby 0,5
+		gmove 1,-4
+		glineby 0,4
+		gmove 1,-3
+		glineby 0,3
+		gmove 4,-3
+		glineby 0,3
+		gmove 1,-4
+		glineby 0,4
+		gmove 1,-5
+		glineby 0,5
+		gmove 1,-6
+		glineby 0,6
+		gmove -9,-4
+		gprintclip(gen$(10*provnum%,3),10)
+		gmove -1,-2
+	until provnum%=25
+	ggmode 2
+	gat 92+54+(st1%-10)/10*(boardwidth%-54-10)/25+4,10+6
+	gcircle 3,1
+	gat 92+54+(nd2%-10)/10*(boardwidth%-54-10)/25+4,10+16
+	gcircle 3,1
+	gat 92+54+(rd3%-10)/10*(boardwidth%-54-10)/25+4,10+26
+	gcircle 3,1
+	gat 92+54+(th4%-10)/10*(boardwidth%-54-10)/25+4,10+36
+	gcircle 3,1
+	gat 92+54+(th5%-10)/10*(boardwidth%-54-10)/25+4,10+46
+	gcircle 3,1
+	provnum%=0
+	gat 354,75
+	gborder $200,60,80
+	gpatt -1,60,80,0
+	gmove -70,0
+	gborder $200,60,80
+endp
+proc cardsini:
+	local prov1%, prov2%
+	rem isrisk%,compid%,upvalue$,downvalue$,isgoingup%,shapeofother%
+	rem isrisk%,iscomp1goingup%,comp1value$,...
+	card$(1)="03 40 5000"
+	card$(2)="04 40 5000"
+	card$(3)="03 60 3010"
+	card$(4)="05100 1011"
+	card$(5)="04 40 5000"
+	card$(6)="02 40 5000"
+	card$(7)="01 2x1/200"
+	card$(8)="01100 1011"
+	card$(9)="01 40 5000"
+	card$(10)="02 2x1/210"
+	card$(11)="01 40 5000"
+	card$(12)="04100 1011"
+	card$(13)="03 2x1/200"
+	card$(14)="01 2x1/200"
+	card$(15)="01 2x1/210"
+	card$(16)="01100 1011"
+	card$(17)="03100 1011"
+	card$(18)="01 2x1/210"
+	card$(19)="114014018019017001"
+	card$(20)="119019019019019002"
+	card$(21)="120020018020020012"
+	card$(22)="116016016016016004"
+	card$(23)="120020020020018005"
+	card$(24)="111001006009005006"
+	card$(25)="106006006001009007"
+	card$(26)="05 2x1/200"
+	card$(27)="02 2x1/200"
+	card$(28)="02100 1011"
+	card$(29)="109009009009009008"
+	card$(30)="05100 1011"
+	card$(31)="04 2x1/210"
+	card$(32)="116017018020015009"
+	card$(33)="02 2x1/210"
+	card$(34)="01 60 3010"
+	card$(35)="02 2x1/200"
+	card$(36)="05 40 5000"
+	card$(37)="03 2x1/210"
+	card$(38)="05 2x1/210"
+	card$(39)="115015015011015010"
+	card$(40)="03 2x1/200"
+	card$(41)="03 60 3010"
+	card$(42)="01 60 3010"
+	card$(43)="105005005004020011"
+	card$(44)="02 60 3010"
+	card$(45)="03 2x1/210"
+	card$(46)="05 40 5000"
+	card$(47)="02 40 5000"
+	card$(48)="05 2x1/200"
+	card$(49)="04 2x1/200"
+	card$(50)="02 60 3010"
+	card$(51)="118020020020020013"
+	card$(52)="05 2x1/210"
+	card$(53)="04 60 3010"
+	card$(54)="03100 1011"
+	card$(55)="04 60 3010"
+	card$(56)="120018020020020019"
+	card$(57)="108008008008008014"
+	card$(58)="120020020020018015"
+	card$(59)="108009008020004016"
+	card$(60)="106004005020007017"
+	card$(61)="115015015011014018"
+	card$(62)="120020020018020003"
+	card$(63)="04 2x1/200"
+	card$(64)="04 2x1/210"
+	card$(65)="02100 1011"
+	card$(66)="02 40 5000"
+	card$(67)="05 60 3010"
+	prov1%=0
+	do
+		prov2%=0
+		prov1%=prov1%+1
+		do
+			prov2%=prov2%+1
+			risklegend$(prov2%,prov1%)=" "
+		until prov2%=5
+	until prov1%=19
+	risklegend$(1,1)=ReadRsc$:(risk_1_1_&)
+	risklegend$(2,1)=ReadRsc$:(risk_1_2_&)
+	risklegend$(3,1)=ReadRsc$:(risk_1_3_&)
+	risklegend$(4,1)=ReadRsc$:(risk_1_4_&)
+	risklegend$(5,1)=ReadRsc$:(risk_1_5_&)
+	risklegend$(1,2)=ReadRsc$:(risk_2_1_&)
+	risklegend$(2,2)=ReadRsc$:(risk_2_2_&)
+	risklegend$(3,2)=ReadRsc$:(risk_2_3_&)
+	risklegend$(4,2)=ReadRsc$:(risk_2_4_&)
+	risklegend$(5,2)=ReadRsc$:(risk_2_5_&)
+	risklegend$(1,3)=ReadRsc$:(risk_3_1_&)
+	risklegend$(2,3)=ReadRsc$:(risk_3_2_&)
+	risklegend$(3,3)=ReadRsc$:(risk_3_3_&)
+	risklegend$(4,3)=ReadRsc$:(risk_3_4_&)
+	risklegend$(5,3)=ReadRsc$:(risk_3_5_&)
+	risklegend$(1,4)=ReadRsc$:(risk_4_1_&)
+	risklegend$(2,4)=ReadRsc$:(risk_4_2_&)
+	risklegend$(3,4)=ReadRsc$:(risk_4_3_&)
+	risklegend$(4,4)=ReadRsc$:(risk_4_4_&)
+	risklegend$(5,4)=ReadRsc$:(risk_4_5_&)
+	risklegend$(1,5)=ReadRsc$:(risk_5_1_&)
+	risklegend$(2,5)=ReadRsc$:(risk_5_2_&)
+	risklegend$(3,5)=ReadRsc$:(risk_5_3_&)
+	risklegend$(4,5)=ReadRsc$:(risk_5_4_&)
+	risklegend$(5,5)=ReadRsc$:(risk_5_5_&)
+	risklegend$(1,6)=ReadRsc$:(risk_6_1_&)
+	risklegend$(2,6)=ReadRsc$:(risk_6_2_&)
+	risklegend$(3,6)=ReadRsc$:(risk_6_3_&)
+	risklegend$(4,6)=ReadRsc$:(risk_6_4_&)
+	risklegend$(5,6)=ReadRsc$:(risk_6_5_&)
+	risklegend$(1,7)=ReadRsc$:(risk_7_1_&)
+	risklegend$(2,7)=ReadRsc$:(risk_7_2_&)
+	risklegend$(3,7)=ReadRsc$:(risk_7_3_&)
+	risklegend$(4,7)=ReadRsc$:(risk_7_4_&)
+	risklegend$(5,7)=ReadRsc$:(risk_7_5_&)
+	risklegend$(1,8)=ReadRsc$:(risk_8_1_&)
+	risklegend$(2,8)=ReadRsc$:(risk_8_2_&)
+	risklegend$(3,8)=ReadRsc$:(risk_8_3_&)
+	risklegend$(4,8)=ReadRsc$:(risk_8_4_&)
+	risklegend$(5,8)=ReadRsc$:(risk_8_5_&)
+	risklegend$(1,9)=ReadRsc$:(risk_9_1_&)
+	risklegend$(2,9)=ReadRsc$:(risk_9_2_&)
+	risklegend$(3,9)=ReadRsc$:(risk_9_3_&)
+	risklegend$(4,9)=ReadRsc$:(risk_9_4_&)
+	risklegend$(5,9)=ReadRsc$:(risk_9_5_&)
+	risklegend$(1,10)=ReadRsc$:(risk_10_1_&)
+	risklegend$(2,10)=ReadRsc$:(risk_10_2_&)
+	risklegend$(3,10)=ReadRsc$:(risk_10_3_&)
+	risklegend$(4,10)=ReadRsc$:(risk_10_4_&)
+	risklegend$(5,10)=ReadRsc$:(risk_10_5_&)
+	risklegend$(1,11)=ReadRsc$:(risk_11_1_&)
+	risklegend$(2,11)=ReadRsc$:(risk_11_2_&)
+	risklegend$(3,11)=ReadRsc$:(risk_11_3_&)
+	risklegend$(4,11)=ReadRsc$:(risk_11_4_&)
+	risklegend$(5,11)=ReadRsc$:(risk_11_5_&)
+	risklegend$(1,12)=ReadRsc$:(risk_12_1_&)
+	risklegend$(2,12)=ReadRsc$:(risk_12_2_&)
+	risklegend$(3,12)=ReadRsc$:(risk_12_3_&)
+	risklegend$(4,12)=ReadRsc$:(risk_12_4_&)
+	risklegend$(5,12)=ReadRsc$:(risk_12_5_&)
+	risklegend$(1,13)=ReadRsc$:(risk_13_1_&)
+	risklegend$(2,13)=ReadRsc$:(risk_13_2_&)
+	risklegend$(3,13)=ReadRsc$:(risk_13_3_&)
+	risklegend$(4,13)=ReadRsc$:(risk_13_4_&)
+	risklegend$(5,13)=ReadRsc$:(risk_13_5_&)
+	risklegend$(1,14)=ReadRsc$:(risk_14_1_&)
+	risklegend$(2,14)=ReadRsc$:(risk_14_2_&)
+	risklegend$(3,14)=ReadRsc$:(risk_14_3_&)
+	risklegend$(4,14)=ReadRsc$:(risk_14_4_&)
+	risklegend$(5,14)=ReadRsc$:(risk_14_5_&)
+	risklegend$(1,15)=ReadRsc$:(risk_15_1_&)
+	risklegend$(2,15)=ReadRsc$:(risk_15_2_&)
+	risklegend$(3,15)=ReadRsc$:(risk_15_3_&)
+	risklegend$(4,15)=ReadRsc$:(risk_15_4_&)
+	risklegend$(5,15)=ReadRsc$:(risk_15_5_&)
+	risklegend$(1,16)=ReadRsc$:(risk_16_1_&)
+	risklegend$(2,16)=ReadRsc$:(risk_16_2_&)
+	risklegend$(3,16)=ReadRsc$:(risk_16_3_&)
+	risklegend$(4,16)=ReadRsc$:(risk_16_4_&)
+	risklegend$(5,16)=ReadRsc$:(risk_16_5_&)
+	risklegend$(1,17)=ReadRsc$:(risk_17_1_&)
+	risklegend$(2,17)=ReadRsc$:(risk_17_2_&)
+	risklegend$(3,17)=ReadRsc$:(risk_17_3_&)
+	risklegend$(4,17)=ReadRsc$:(risk_17_4_&)
+	risklegend$(5,17)=ReadRsc$:(risk_17_5_&)
+	risklegend$(1,18)=ReadRsc$:(risk_18_1_&)
+	risklegend$(2,18)=ReadRsc$:(risk_18_2_&)
+	risklegend$(3,18)=ReadRsc$:(risk_18_3_&)
+	risklegend$(4,18)=ReadRsc$:(risk_18_4_&)
+	risklegend$(5,18)=ReadRsc$:(risk_18_5_&)
+	risklegend$(1,19)=ReadRsc$:(risk_19_1_&)
+	risklegend$(2,19)=ReadRsc$:(risk_19_2_&)
+	risklegend$(3,19)=ReadRsc$:(risk_19_3_&)
+	risklegend$(4,19)=ReadRsc$:(risk_19_4_&)
+	risklegend$(5,19)=ReadRsc$:(risk_19_5_&)
+endp
+proc piochecarte%:(riskallowed%)
+	local cardtobetaken%, accepted%
+	if numbercardstaken%>=67
+		cardtobetaken%=-1
+		goto fin::
+	endif
+	cardtobetaken%=int(rnd*66)+1
+	accepted%=0
+	do
+		if (left$(card$(cardtobetaken%),1)="1" and riskallowed%=0) or cardtaken%(cardtobetaken%)=1
+			cardtobetaken%=cardtobetaken%-1
+			if cardtobetaken%=0
+				cardtobetaken%=67
+			endif
+		else
+			cardtaken%(cardtobetaken%)=1
+			accepted%=1
+		endif
+	until accepted%=1
+	if left$(card$(cardtobetaken%),1)="1"
+		cardtobetaken%=cardtobetaken%+100
+	endif
+	numbercardstaken%=numbercardstaken%+1
+	gfont 268435952
+	guse 1
+	gat 370,125
+	gcolor 0,0,0
+	gprintb gen$(67-numbercardstaken%,2),30,3,0
+	fin::
+	return cardtobetaken%
+endp
+proc drawrisk:(string$,number%,cardwin%)
+	gborder $200
+	gat 2,12
+	gfont KFontArialNormal8&
+	gstyle 33
+	gprintb ReadRsc$:(risk_&),56,3,0,0,0
+	gat 2,17
+	gstyle 32
+	glineby 56,0
+	gat 2,29
+	gprint "Tobler"
+	gat 2,40
+	gprint "GM"
+	gat 2,51
+	gprint "BBC"
+	gat 2,62
+	gprint "Ciba-"
+	gat 2,73
+	gprint "SBS"
+	gstyle 0
+	if mid$(string$,2,1)="1"
+		gat 35,23
+		gcolor 255,0,0
+		petiteflechehaut:
+		gmove 6,8
+		gcolor 0,0,0
+		gprint mid$(string$,3,2)
+	elseif mid$(string$,2,1)="0"
+		gat 35,23
+		gcolor 0,0,255
+		petiteflechebas:
+		gmove 6,2
+		gcolor 0,0,0
+		gprint mid$(string$,3,2)
+	endif
+	if mid$(string$,5,1)="1"
+		gat 35,34
+		gcolor 255,0,0
+		petiteflechehaut:
+		gmove 6,8
+		gcolor 0,0,0
+		gprint mid$(string$,6,2)
+	elseif mid$(string$,5,1)="0"
+		gat 35,34
+		gcolor 0,0,255
+		petiteflechebas:
+		gmove 6,2
+		gcolor 0,0,0
+		gprint mid$(string$,6,2)
+	endif
+	if mid$(string$,8,1)="1"
+		gat 35,45
+		gcolor 255,0,0
+		petiteflechehaut:
+		gmove 6,8
+		gcolor 0,0,0
+		gprint mid$(string$,9,2)
+	elseif mid$(string$,8,1)="0"
+		gat 35,45
+		gcolor 0,0,255
+		petiteflechebas:
+		gmove 6,2
+		gcolor 0,0,0
+		gprint mid$(string$,9,2)
+	endif
+	if mid$(string$,11,1)="1"
+		gat 35,56
+		gcolor 255,0,0
+		petiteflechehaut:
+		gmove 6,8
+		gcolor 0,0,0
+		gprint mid$(string$,12,2)
+	elseif mid$(string$,11,1)="0"
+		gat 35,56
+		gcolor 0,0,255
+		petiteflechebas:
+		gmove 6,2
+		gcolor 0,0,0
+		gprint mid$(string$,12,2)
+	endif
+	if mid$(string$,14,1)="1"
+		gat 35,67
+		gcolor 255,0,0
+		petiteflechehaut:
+		gmove 6,8
+		gcolor 0,0,0
+		gprint mid$(string$,15,2)
+	elseif mid$(string$,14,1)="0"
+		gat 35,67
+		gcolor 0,0,255
+		petiteflechebas:
+		gmove 6,2
+		gcolor 0,0,0
+		gprint mid$(string$,15,2)
+	endif
+endp
+proc changeboardvalues:(string$)
+	local othercomp%, othercomp$(50), provnum%, ek%
+	updateboard:
+	if left$(string$,1)="1"
+		provnum%=-1
+		do
+			provnum%=provnum%+1
+			if mid$(string$,2+provnum%*3,1)="1"
+				compvalue%(provnum%+1)=compvalue%(provnum%+1)+eval(mid$(string$,3+provnum%*3,2))
+				if compvalue%(provnum%+1)>250
+					compsup%(provnum%+1)=compvalue%(provnum%+1)-250
+					compvalue%(provnum%+1)=250
+				endif
+			elseif mid$(string$,2+provnum%*3,1)="0"
+				compvalue%(provnum%+1)=compvalue%(provnum%+1)-eval(mid$(string$,3+provnum%*3,2))
+				if compvalue%(provnum%+1)<10
+					compsup%(provnum%+1)=-1
+					compvalue%(provnum%+1)=10
+				endif
+			endif
+		until provnum%=4
+		dinit ReadRsc$:(risque_&)+" "+right$(string$,2)
+		dtext risklegend$(1,eval(right$(string$,2))),""
+		if risklegend$(2,eval(right$(string$,2)))<>" "
+			dtext risklegend$(2,eval(right$(string$,2))),""
+		endif
+		if risklegend$(3,eval(right$(string$,2)))<>" "
+			dtext risklegend$(3,eval(right$(string$,2))),""
+		endif
+		if risklegend$(4,eval(right$(string$,2)))<>" "
+			dtext risklegend$(4,eval(right$(string$,2))),""
+		endif
+		if risklegend$(5,eval(right$(string$,2)))<>" "
+			dtext risklegend$(5,eval(right$(string$,2))),""
+		endif
+		dbuttons "OK",13
+		dialog
+	elseif left$(string$,1)="0" and mid$(string$,3,3)="100"
+		provnum%=0
+		do
+			provnum%=provnum%+1
+			compvalue%(provnum%)=compvalue%(provnum%)-10
+			if provnum%=eval(mid$(string$,2,1))
+				compvalue%(provnum%)=compvalue%(provnum%)+110
+			endif
+			if compvalue%(provnum%)>250
+				compsup%(provnum%)=compvalue%(provnum%)-250
+				compvalue%(provnum%)=250
+			elseif compvalue%(provnum%)<10
+				compsup%(provnum%)=-1
+				compvalue%(provnum%)=10
+			endif
+		until provnum%=5
+	else
+		rem === ré-affichage des cours ===
+		updateboard:
+		provnum%=0
+		do
+			provnum%=provnum%+1
+			if provnum%=eval(mid$(string$,2,1))
+				if provnum%<5
+					continue
+				elseif provnum%>=5
+					break
+				endif
+			endif
+			if othercomp$=""
+				rem === Attention à la virgule ===
+				othercomp$=compname$:(provnum%)
+			else
+				othercomp$=othercomp$+","+compname$:(provnum%)
+			endif
+		until provnum%=5
+		loop2::
+		dinit ReadRsc$:(changecours_&)
+		dtext "",ReadRsc$:(choixmodif_&),2
+		dchoice othercomp%,ReadRsc$:(compagnie_&)+":",othercomp$
+		dbuttons "Annuler",-27,"OK",13
+		ek%=dialog
+		if ek%=0 
+			replaceplayedcard:
+			cardplayed%(1)=0
+			cardplayed%(2)=0
+			goto fin::
+		endif
+		updateboard:
+		if othercomp%>=eval(mid$(string$,2,1))
+			othercomp%=othercomp%+1
+		endif
+		if mid$(string$,4,2)<>"2x"
+			if mid$(string$,9,1)="1"
+				compvalue%(eval(mid$(string$,2,1)))=compvalue%(eval(mid$(string$,2,1)))+eval(mid$(string$,3,3))
+				if compvalue%(eval(mid$(string$,2,1)))>250
+					compsup%(eval(mid$(string$,2,1)))=compvalue%(eval(mid$(string$,2,1)))-250
+					compvalue%(eval(mid$(string$,2,1)))=250
+				endif
+				compvalue%(othercomp%)=compvalue%(othercomp%)-eval(mid$(string$,6,3))
+				if compvalue%(othercomp%)<10
+					compsup%(othercomp%)=-1
+					compvalue%(othercomp%)=10
+				endif
+			elseif mid$(string$,9,1)="0"
+				compvalue%(eval(mid$(string$,2,1)))=compvalue%(eval(mid$(string$,2,1)))-eval(mid$(string$,6,3))
+				if compvalue%(eval(mid$(string$,2,1)))<10
+					compsup%(eval(mid$(string$,2,1)))=-1
+					compvalue%(eval(mid$(string$,2,1)))=10
+				endif
+				compvalue%(othercomp%)=compvalue%(othercomp%)+eval(mid$(string$,3,3))
+				if compvalue%(othercomp%)>250
+					compsup%(othercomp%)=compvalue%(othercomp%)-250
+					compvalue%(othercomp%)=250
+				endif
+			endif
+		else
+			if mid$(string$,9,1)="1"
+				compvalue%(eval(mid$(string$,2,1)))=compvalue%(eval(mid$(string$,2,1)))*2
+				if compvalue%(eval(mid$(string$,2,1)))>250
+					compsup%(eval(mid$(string$,2,1)))=compvalue%(eval(mid$(string$,2,1)))-250
+					compvalue%(eval(mid$(string$,2,1)))=250
+				endif
+				compvalue%(othercomp%)=int(compvalue%(othercomp%)/2/10)*10
+				if compvalue%(othercomp%)<10
+					compsup%(othercomp%)=-1
+					compvalue%(othercomp%)=10
+				endif
+			elseif mid$(string$,9,1)="0"
+				compvalue%(eval(mid$(string$,2,1)))=int(compvalue%(eval(mid$(string$,2,1)))/10/2)*10
+				if compvalue%(eval(mid$(string$,2,1)))<10
+					compsup%(eval(mid$(string$,2,1)))=-1
+					compvalue%(eval(mid$(string$,2,1)))=10
+				endif
+				compvalue%(othercomp%)=compvalue%(othercomp%)*2
+				if compvalue%(othercomp%)>250
+					compsup%(othercomp%)=compvalue%(othercomp%)-250
+					compvalue%(othercomp%)=250
+				endif
+			endif
+		endif
+	endif
+	firsttimeofturn%=0
+	updateboard:
+	fin::
+	ggmode 0
+endp
+proc buysellactions:(firsttimeinturn%)
+	local window%, provnum%, currentx%, currenty%
+	local ev&(16), previousx%, previousy%, buy%(5)
+	local actions&(5), cash(5), number, tobuy&(5)
+	local cash, cashused(5), ek%, startposx%
+	local startposy%, startpenx%, startpeny%, cash2
+	rem ===Initialisation de la boîte===
+	guse 1
+	window%=gcreate(gwidth/2-155,gheight/2-75,310,150,0,$110+colormode%)
+	guse window%
+	gxborder 2,$84
+	gat 3,3
+	ggrey 1
+	gfill 304,15,0
+	gat 2,2
+	glineby 0,146
+	gat 2,2
+	glineby 304,0
+	gat 12,14
+	gfont 268435952
+	gcolor 0,0,0
+	gprint ReadRsc$:(tbar11_&)+" / "+ReadRsc$:(tbar12_&)+"Vendre"
+	cash=playercash(plyr%)
+	cash2=cash
+	provnum%=0
+	do
+		provnum%=provnum%+1
+		gfont 268435955
+		gstyle 0
+		gat 8,32+(provnum%-1)*15
+		gprintclip(compname$:(provnum%),40)
+		gprint ":"
+		gat 52,32+(provnum%-1)*15
+		gcolor 0,0,0
+		buy%(provnum%)=1
+		if firsttimeofturn%=1
+			gprintb ReadRsc$:(Tbar11_&),50,3,0,0
+		elseif firsttimeofturn%=0
+			if atstartofturn&(provnum%)<0
+				gprintb ReadRsc$:(tbar12_&),50,3,0,0
+				buy%(provnum%)=-1
+			else
+				gprintb ReadRsc$:(Tbar11_&),50,3,0,0
+				buy%(provnum%)=1
+			endif
+		endif
+		gat 105,32+(provnum%-1)*15
+		gprintb "0",50,1,0,0
+		gat 205,32+(provnum%-1)*15
+		gprintb "0",70,1,0,0
+		gstyle 32
+		gat 159,32+(provnum%-1)*15
+		gprint "Actions"
+		gat 277,32+(provnum%-1)*15
+		gprint "SFr"
+	until provnum%=5
+	gat 8,97
+	glineby 294,0
+	gstyle 0
+	gat 8,112
+	gprint ReadRsc$:(votreavoir_&)+":"	
+	gat 80,112
+	gprintb gen$(cash,12),194,1,0,0
+	gstyle 32
+	gat 272,112
+	gprint " SFr"
+	rem ===initialisation des boutons ===
+	gat 155-80,115
+	gfont 268435952
+	gstyle 0
+	gbutton ReadRsc$:(annuler_&),2,70,21,0
+	gat 155+10,115
+	gbutton "OK",2,70,21,0
+	gcolor 0,0,0
+	gfont KFontArialNormal8&
+	gat 155-80,145
+	gprintb "Esc",70,3,0,0
+	gat 155+10,145
+	gprintb "S",70,3,0,0
+	rem === Fin d'initialisation ===
+	rem === Positionnement de la sélection ===
+	currentx%=1
+	previousx%=1
+	currenty%=1
+	previousy%=1
+	gat 52,20
+	gfill 50,15,2
+	gvisible on
+	eventloop::
+	while 1
+		getevent32 ev&()
+		if (ev&(1) and &400)=0
+			if ev&(1)=4104
+				if currentx%<3
+					previousx%=currentx%
+					currentx%=currentx%+1
+				else
+					previousx%=currentx%
+				endif
+				previousy%=currenty%
+				movehighlight:(previousx%,previousy%,currentx%,currenty%,window%)
+			elseif ev&(1)=4103
+				if currentx%>1
+					previousx%=currentx%
+					currentx%=currentx%-1
+				else
+					previousx%=currentx%
+				endif
+				previousy%=currenty%
+				movehighlight:(previousx%,previousy%,currentx%,currenty%,window%)
+			elseif ev&(1)=4105
+				if currenty%>1
+					previousy%=currenty%
+					currenty%=currenty%-1
+				else
+					previousy%=currenty%
+				endif
+				previousx%=currentx%
+				movehighlight:(previousx%,previousy%,currentx%,currenty%,window%)
+			elseif ev&(1)=4106
+				if currenty%<5
+					previousy%=currenty%
+					currenty%=currenty%+1
+				else
+					previousy%=currenty%
+				endif
+				previousx%=currentx%
+				movehighlight:(previousx%,previousy%,currentx%,currenty%,window%)
+			elseif ev&(1)=27
+				gclose window%
+				goto fin::
+			elseif ev&(1)=13
+				editcontent::
+				gfont 268435955
+				gstyle 0
+				if currentx%=1
+					gat 52,20+(currenty%-1)*15
+					gfill 50,15,2
+					gat 52,32+(currenty%-1)*15
+					if firsttimeofturn%=1 or atstartofturn&(currenty%)=0
+						if buy%(currenty%)=1
+							buy%(currenty%)=-1
+							gprintb ReadRsc$:(Tbar12_&),50,3,0,0
+						elseif buy%(currenty%)=-1
+							buy%(currenty%)=1
+							gprintb ReadRsc$:(tbar11_&),50,3,0,0
+						endif
+						tobuy&(currenty%)=0
+						cash2=cash2-cashused(currenty%)
+						cashused(currenty%)=0
+					endif
+					gat 105,32+(currenty%-1)*15
+					gprintb gen$(tobuy&(currenty%),12),50,1,0,0
+					gat 205,32+(currenty%-1)*15
+					gprintb gen$(abs(cashused(currenty%)),12),70,1,0,0
+					gat 80,112
+					gprintb gen$(sum(cashused(),5)+cash,12),194,1,0,0
+					gat 52,20+(currenty%-1)*15
+					gfill 50,15,2
+				elseif currentx%=2
+					cash2=cash2-cashused(currenty%)
+					dinit ReadRsc$:(avactionsde_&)+compname$:(currenty%)
+					if buy%(currenty%)=1
+						dtext "",ReadRsc$:(buydialog11_&)+gen$(playerowns(plyr%,currenty%),12)+ReadRsc$:(buydialog12_&)+compname$:(currenty%),0
+						dtext "",ReadRsc$:(buydialog21_&)+gen$(cash2,13)+ReadRsc$:(buydialog22_&),0
+						number=intf(cash2/compvalue%(currenty%))
+						if number+playerowns(1,currenty%)+computerowns(currenty%)+playerowns(2,currenty%)>compmax&(currenty%)
+							number=compmax&(currenty%)-playerowns(1,currenty%)-computerowns(currenty%)-playerowns(2,currenty%)
+						elseif number<0
+							number=0	
+						endif
+						dtext "",ReadRsc$:(buydialog31_&)+gen$(number,12)+ReadRsc$:(buydialog32_&),0
+						dlong tobuy&(currenty%),ReadRsc$:(buydialog41_&),0,compmax&(currenty%)-playerowns(1,currenty%)-computerowns(currenty%)-playerowns(2,currenty%)
+					else
+						dtext "",ReadRsc$:(selldialog11_&)+gen$(playerowns(plyr%,currenty%),12)+ReadRsc$:(selldialog12_&)+compname$:(currenty%),0
+						dtext "",ReadRsc$:(selldialog21_&)+gen$(playerowns(plyr%,currenty%)*compvalue%(currenty%),13)+ReadRsc$:(selldialog22_&),0
+						dlong tobuy&(currenty%),ReadRsc$:(selldialog31_&),0,playerowns(plyr%,currenty%)
+					endif
+					dbuttons ReadRsc$:(annuler_&),-27,"OK",13
+					ek%=dialog
+					if ek%=0
+						goto eventloop::
+					endif
+					tobuy&(currenty%)=buy%(currenty%)*tobuy&(currenty%)
+					cashused(currenty%)=-tobuy&(currenty%)*compvalue%(currenty%)
+					cash2=cash2+cashused(currenty%)
+					rem ===Update window Graphics===
+					gat 102,20+(currenty%-1)*15
+					gfill 102,15,2
+					gat 105,32+(currenty%-1)*15
+					gprintb gen$(abs(tobuy&(currenty%)),12),50,1,0,0
+					gat 205,32+(currenty%-1)*15
+					gprintb gen$(abs(cashused(currenty%)),12),70,1,0,0
+					gat 102,20+(currenty%-1)*15
+					gfill 102,15,2
+					gat 80,112
+					gprintb gen$(sum(cashused(),5)+cash,12),194,1,0,0
+				elseif currentx%=3
+					cash2=cash2-cashused(currenty%)
+					dinit ReadRsc$:(avactionsde_&)+compname$:(currenty%)
+					if buy%(currenty%)=1
+						dtext "",ReadRsc$:(cashbuydialog11_&)+gen$(playerowns(plyr%,currenty%)*compvalue%(currenty%),12)+ReadRsc$:(cashbuydialog12_&)+compname$:(currenty%),0
+						dtext "",ReadRsc$:(cashbuydialog21_&)+gen$(cash2,13)+ReadRsc$:(cashbuydialog22_&),0
+						number=(compmax&(currenty%)-playerowns(1,currenty%)-computerowns(currenty%)-playerowns(2,currenty%))*compvalue%(currenty%)
+						if number>cash2
+							number=cash2
+						endif
+						if number<0
+							number=0
+						endif
+						dtext "",ReadRsc$:(cashbuydialog31_&)+gen$(number,12)+ReadRsc$:(cashbuydialog32_&),0
+						dfloat cashused(currenty%),ReadRsc$:(cashbuydialog41_&),0,(compmax&(currenty%)-playerowns(1,currenty%)-computerowns(currenty%)-playerowns(2,currenty%))*compvalue%(currenty%)
+					else
+						dtext "",ReadRsc$:(cashselldialog11_&)+gen$(playerowns(plyr%,currenty%)*compvalue%(currenty%),12)+ReadRsc$:(cashselldialog12_&)+compname$:(currenty%),0
+						number=playerowns(plyr%,currenty%)*compvalue%(currenty%)
+						dtext "",ReadRsc$:(cashselldialog21_&)+gen$(number,12)+ReadRsc$:(cashselldialog22_&),0
+						dfloat cashused(currenty%),ReadRsc$:(cashselldialog31_&),0,number
+					endif
+					dbuttons ReadRsc$:(annuler_&),-27,"OK",13
+					ek%=dialog
+					if ek%=0
+						goto eventloop::
+					endif
+					tobuy&(currenty%)=buy%(currenty%)*intf(cashused(currenty%)/compvalue%(currenty%))
+					cashused(currenty%)=-compvalue%(currenty%)*tobuy&(currenty%)
+					cash2=cash2+cashused(currenty%)
+					rem ===Update window Graphics===
+					gat 205,20+(currenty%-1)*15
+					gfill 99,15,2
+					gat 105,32+(currenty%-1)*15
+					gprintb gen$(abs(tobuy&(currenty%)),12),50,1,0,0
+					gat 205,32+(currenty%-1)*15
+					gprintb gen$(abs(cashused(currenty%)),12),70,1,0,0
+					gat 205,20+(currenty%-1)*15
+					gfill 99,15,2
+					gat 80,112
+					gprintb gen$(sum(cashused(),5)+cash,12),194,1,0,0
+				endif
+			elseif ev&(1)=83 or ev&(1)=115
+				validate::
+				if cash+sum(cashused(),5)<0
+					dinit ReadRsc$:(avactionsde_&)
+					dtext ReadRsc$:(pastrans1_&),""
+					dtext ReadRSc$:(pastrans2_&),""
+					dbuttons ReadRsc$:(annuler_&),-27,"OK",13
+					dialog
+					goto eventloop::
+				endif
+				if firsttimeofturn%=1
+					provnum%=0
+					do
+						provnum%=provnum%+1
+						atstartofturn&(provnum%)=atstartofturn&(provnum%)+tobuy&(provnum%)
+					until provnum%>=5
+				endif
+				provnum%=0
+				do
+					provnum%=provnum%+1
+					playercash(plyr%)=playercash(plyr%)+cashused(provnum%)
+					playerowns(plyr%,provnum%)=playerowns(plyr%,provnum%)+tobuy&(provnum%)
+				until provnum%>=5
+				closewindow::
+				gclose window%
+				printinfodisplay:
+				goto fin::
+			endif
+		else
+			rem =l'évenement n'est pas une touche===
+			if ev&(1)=&408 and ev&(3)=window%
+				if ev&(4)=0
+					if ev&(7)>=20 and ev&(7)<94 and ev&(6)>=52 and ev&(6)<=305
+						previousx%=currentx%
+						previousy%=currenty%
+						currenty%=int((ev&(7)-20)/15)+1
+						if ev&(6)>=52 and ev&(6)<105
+							currentx%=1
+						elseif ev&(6)>=105 and ev&(6)<205
+							currentx%=2
+						elseif ev&(6)>=205 and ev&(6)<305
+							currentx%=3
+						endif
+						if previousx%=currentx% and previousy%=currenty%
+							goto editcontent::
+						else
+							movehighlight:(previousx%,previousy%,currentx%,currenty%,window%)
+						endif
+					elseif ev&(7)>=115 and ev&(7)<=136
+						if ev&(6)>=75 and ev&(6)<=145
+							goto closewindow::
+						elseif ev&(6)>=165 and ev&(6)<=235
+							goto validate::
+						endif
+					elseif ev&(7)>=0 and ev&(7)<=19
+						startposx%=ev&(8)-ev&(6)
+						startposy%=ev&(9)-ev&(7)
+						startpenx%=ev&(8)
+						startpeny%=ev&(9)
+					endif
+				elseif ev&(4)=6 and ev&(7)>=0 and ev&(7)<=19
+					gsetwin startposx%+ev&(8)-startpenx%,startposy%+ev&(9)-startpeny%					
+				endif
+			endif
+		endif
+	endwh
+	fin::
+endp
+proc movehighlight:(px%,py%,cx%,cy%,win%)
+	guse win%
+	if px%=1
+		gat 52,20+(py%-1)*15
+		gfill 50,15,2
+	elseif px%=2
+		gat 102,20+(py%-1)*15
+		gfill 102,15,2
+	elseif px%=3
+		gat 205,20+(py%-1)*15
+		gfill 99,15,2
+	endif
+	if cx%=1
+		gat 52,20+(cy%-1)*15
+		gfill 50,15,2
+	elseif cx%=2
+		gat 102,20+(cy%-1)*15
+		gfill 102,15,2
+	elseif cx%=3
+		gat 205,20+(cy%-1)*15
+		gfill 99,15,2
+	endif
+endp
+proc cmda%:
+	buysellactions:(firsttimeofturn%)
+	fin::
+endp
+proc cmdb%:
+	local provnum%, ek%, comefromchallenge%
+	comefromchallenge%=0
+	if numbercardstaken%>=67
+		rem ===partie terminée===
+		giprint ReadRsc$:(finpartie_&)
+		goto fin::
+	endif
+	if firsttimeofturn%=1
+		giprint ReadRSc$:(doitjouercarte_&)
+		goto fin::
+	endif
+	if playercash(plyr%)<0
+		faillite::
+		dinit ReadRsc$:(avert_&)
+		dtext ReadRsc$:(faillite1_&),""
+		dtext ReadRsc$:(faillite2_&),""
+		dtext ReadRsc$:(faillite3_&),""
+		dbuttons ReadRsc$:(faillitebout1_&),-27,ReadRsc$:(faillitebout2_&),13
+		ek%=dialog
+		if ek%=13
+			numbercardstaken%=67
+			goto fin::
+		elseif ek%=0
+			if playercash(plyr%)+playerowns(plyr%,1)*compvalue%(1)+playerowns(plyr%,2)*compvalue%(2)+playerowns(plyr%,3)*compvalue%(3)+playerowns(plyr%,4)*compvalue%(4)+playerowns(plyr%,5)*compvalue%(5)<0
+				dinit ReadRsc$:(sorry_&)
+				dtext ReadRsc$:(perdu1_&),""
+				dtext ReadRsc$:(perdu2_&),""
+				dbuttons ReadRsc$:(annuler_&),13
+				dialog
+				numbercardstaken%=67
+				goto fin::
+			endif
+			buysellactions:(firsttimeofturn%)
+			if comefromchallenge%=1
+				goto nextchallengeai::
+			endif
+		endif
+	endif
+	if computercash<0 and gametype%=1
+		aisellallactions:
+		if computercash<=0
+			dinit ReadRsc$:(ailost1_&)
+			dtext ReadRsc$:(ailost2_&),""
+			dtext ReadRsc$:(ailost3_&),""
+			dbuttons "OK",13
+			dialog
+			numbercardstaken%=67
+			goto fin::
+		endif
+	endif
+	if gametype%=1
+		if numbercardstaken%>=67
+			goto fin::
+		endif
+		AIplays:
+		if ailevel%=4
+			if playercash(plyr%)<0
+				comefromchallenge%=1
+				goto faillite::
+			endif
+			nextchallengeai::
+			if numbercardstaken%>=67
+				goto fin::
+			endif
+			AIplays:
+		endif
+		if numbercardstaken%>=67
+				goto fin::
+		endif	
+		wininuse%=cardplayed%(2)
+		cardplayed%(1)=0
+		firsttimeofturn%=1
+		cartepiochee%=piochecarte%:(1)
+		cardwin%=gcreate(10,10+(height%-20-80)*(wininuse%-2)/4,60,80,1,$100+colormode%)
+		cardused%(plyr%,1,cardwin%)=cartepiochee%
+		if cartepiochee%<100
+			drawcard:(card$(cartepiochee%),cartepiochee%,cardwin%)
+			cardused%(plyr%,2,cardwin%)=0
+			gorder cardwin%,7-cardwin%
+		elseif cartepiochee%>=100
+			drawrisk:(card$(cartepiochee%-100),cartepiochee%-100,cardwin%)
+			cardused%(plyr%,2,cardwin%)=1
+			gorder cardwin%,1
+		endif
+		provnum%=0
+		do
+			provnum%=provnum%+1
+			atstartofturn&(provnum%)=0
+		until provnum%=5
+		giprint ReadRsc$:(newturn_&)
+	elseif gametype%=2
+		dinit ReadRsc$:(findutour_&)
+		dtext "",playername$(plyr%)+ReadRsc$:(findutour1_&),0
+		dtext "",ReadRsc$:(findutour2_&),0
+		dbuttons "OK",13
+		dialog
+		provnum%=1
+		while provnum%<6
+			provnum%=provnum%+1
+			trap gclose provnum%
+		endwh
+		cardplayed%(1)=0
+		firsttimeofturn%=1
+		cardused%(plyr%,1,cardplayed%(2))=piochecarte%:(1)
+		if cardused%(plyr%,1,cardplayed%(2))>=100
+			cardused%(plyr%,2,cardplayed%(2))=1
+		else
+			cardused%(plyr%,2,cardplayed%(2))=0
+		endif
+		if plyr%=1
+			plyr%=2
+		elseif plyr%=2
+			plyr%=1
+		endif
+		dinit ReadRsc$:(nouveautour_&)
+		dtext "",playername$(plyr%)+ReadRsc$:(nouveautour1_&),0
+		dtext "",ReadRsc$:(nouveautour2_&),0
+		dbuttons "OK",13
+		dialog
+		provnum%=0
+		do
+			provnum%=provnum%+1
+			cardwin%=gcreate(10,10+(height%-20-80)*(provnum%-1)/4,60,80,1,$100+colormode%)
+			if cardused%(plyr%,1,provnum%+1)<100
+				drawcard:(card$(cardused%(plyr%,1,provnum%+1)),cardused%(plyr%,1,provnum%+1),cardwin%)
+			else
+				drawrisk:(card$(cardused%(plyr%,1,provnum%+1)-100),cardused%(plyr%,1,provnum%+1)-100,cardwin%)
+			endif
+			atstartofturn&(provnum%)=0
+		until provnum%=5
+		provnum%=0
+		do
+			provnum%=provnum%+1
+			if cardused%(plyr%,2,provnum%+1)=1
+				gorder provnum%+1,1
+				break
+			endif
+		until provnum%>=5
+		giprint ReadRsc$:(votretour_&)+playername$(plyr%)
+	endif
+	savedoc:(filename$)
+	fin::
+endp
+proc printinfodisplay:
+	local provnum%, originx%, originy%, textwidth%, actionwidth%
+	local amountwidth%, textheight%, overallwidth%, overallheight%
+	local cashwidth%, secondpstart%
+	gcolor 0,0,0
+	ggmode 0
+	if screentype%=1
+		gfont 9
+		originx%=80
+		originy%=80
+		overallwidth%=200
+		textheight%=10
+		textwidth%=35
+		actionwidth%=30
+		amountwidth%=40
+		cashwidth%=50
+		secondpstart%=textwidth%+originx%+actionwidth%+amountwidth%+8
+	elseif screentype%=2
+		originx%=80
+		originy%=120
+		overallwidth%=340
+		textheight%=14
+		textwidth%=50
+		actionwidth%=60
+		amountwidth%=75
+		cashwidth%=95
+		secondpstart%=textwidth%+originx%+actionwidth%+amountwidth%+8
+		gfont 10
+	endif
+	gstyle 33
+	guse 1
+	gat originx%,originy%
+	gprint playername$(1)+":"
+	gat originx%,originy%+2
+	glineby overallwidth%,0
+	gstyle 0
+	provnum%=-1
+	do
+		provnum%=provnum%+1
+		gat originx%,originy%+textheight%+2+textheight%*provnum%
+		gprint left$(compname$:(provnum%+1),6)+":"
+	until provnum%=4
+	gat originx%,originy%+2+textheight%*6
+	gprint "Cash:"
+	gat originx%,originy%+textheight%*6+5
+	glineby overallwidth%,0
+	gat originx%,originy%+textheight%*7+6
+	gprint "Total:"
+	provnum%=-1
+	do
+		provnum%=provnum%+1
+		gat originx%+textwidth%,originy%+textheight%*(provnum%+1)+2
+		gPRINTB gen$(playerowns(1,provnum%+1),6),actionwidth%,1,0,0,0
+	until provnum%=4
+	provnum%=-1
+	do
+		provnum%=provnum%+1
+		gat originx%+textwidth%+actionwidth%+5,originy%+textheight%*(provnum%+1)+2
+		gPRINTB gen$(playerowns(1,provnum%+1)*compvalue%(provnum%+1),8),amountwidth%,1,0,0,0
+	until provnum%=4
+	gat originx%+textwidth%+actionwidth%+amountwidth%+5-cashwidth%,originy%+2+textheight%*6 
+	gPRINTB gen$(playercash(1),10),cashwidth%,1,0,0,0
+	gat originx%+textwidth%+actionwidth%+amountwidth%+5-cashwidth%,originy%+textheight%*7+6
+	gPRINTB gen$(playercash(1)+playerowns(1,1)*compvalue%(1)+playerowns(1,2)*compvalue%(2)+playerowns(1,3)*compvalue%(3)+playerowns(1,4)*compvalue%(4)+playerowns(1,5)*compvalue%(5),10),cashwidth%,1,0,0,0
+	gat secondpstart%-1,originy%+3
+	glineto secondpstart%-1,gheight-4
+	gat secondpstart%,originy%
+	gstyle 33
+	gprint playername$(2)+":"
+	gstyle 0
+	provnum%=-1
+	do
+		provnum%=provnum%+1
+		gat secondpstart%+1,originy%+textheight%*(provnum%+1)+2
+		if gametype%=1
+			gPRINTB gen$(computerowns(provnum%+1),6),actionwidth%,1,0,0,0
+		elseif gametype%=2
+			gPRINTB gen$(playerowns(2,provnum%+1),6),actionwidth%,1,0,0,0
+		endif
+	until provnum%=4
+	provnum%=-1
+	do
+		provnum%=provnum%+1
+		gat secondpstart%+actionwidth%+12,originy%+textheight%*(provnum%+1)+2
+		if gametype%=1
+			gPRINTB gen$(computerowns(provnum%+1)*compvalue%(provnum%+1),8),amountwidth%,1,0,0,0
+		elseif gametype%=2
+			gPRINTB gen$(playerowns(2,provnum%+1)*compvalue%(provnum%+1),8),amountwidth%,1,0,0,0
+		endif
+	until provnum%=4
+	gat secondpstart%+actionwidth%+amountwidth%-cashwidth%+12,originy%+textheight%*6+2
+	if gametype%=1	
+		gPRINTB gen$(computercash,10),cashwidth%,1,0,0,0
+		gat secondpstart%+actionwidth%+amountwidth%-cashwidth%+12,originy%+textheight%*7+6
+		gPRINTB gen$(computercash+computerowns(1)*compvalue%(1)+computerowns(2)*compvalue%(2)+computerowns(3)*compvalue%(3)+computerowns(4)*compvalue%(4)+computerowns(5)*compvalue%(5),10),cashwidth%,1,0,0,0
+	elseif gametype%=2
+		gPRINTB gen$(playercash(2),10),cashwidth%,1,0,0,0
+		gat secondpstart%+actionwidth%+amountwidth%-cashwidth%+12,originy%+textheight%*7+6
+		gPRINTB gen$(playercash(2)+playerowns(2,1)*compvalue%(1)+playerowns(2,2)*compvalue%(2)+playerowns(2,3)*compvalue%(3)+playerowns(2,4)*compvalue%(4)+playerowns(2,5)*compvalue%(5),10),cashwidth%,1,0,0,0
+	endif
+endp
+proc cmdc%:
+	local provnum%, comp$(50), compchosen%, compallowed%(5)
+	local ek%, number%
+	if firsttimeofturn%=1
+		giprint ReadRsc$:(modifiecours_&)
+		goto findefin::
+	endif
+	ggmode 2
+	gat 92+54+(compvalue%(1)-10)/10*(boardwidth%-54-10)/25+4,10+6
+	gcircle 3,1
+	gat 92+54+(compvalue%(2)-10)/10*(boardwidth%-54-10)/25+4,10+16
+	gcircle 3,1
+	gat 92+54+(compvalue%(3)-10)/10*(boardwidth%-54-10)/25+4,10+26
+	gcircle 3,1
+	gat 92+54+(compvalue%(4)-10)/10*(boardwidth%-54-10)/25+4,10+36
+	gcircle 3,1
+	gat 92+54+(compvalue%(5)-10)/10*(boardwidth%-54-10)/25+4,10+46
+	gcircle 3,1
+	provnum%=0
+	do
+		provnum%=provnum%+1
+		if compvalue%(provnum%)=250
+			if comp$=""
+				comp$=compname$:(provnum%)
+			else
+				comp$=comp$+","+compname$:(provnum%)
+			endif
+			compallowed%(provnum%)=1
+		endif
+	until provnum%=5
+	if comp$=""
+		giprint ReadRsc$:(pas250_&)
+	else
+		dinit ReadRSc$:(split_&)
+		dtext "",ReadRsc$:(quelsplit1_&),0
+		dchoice compchosen%,ReadRsc$:(quelsplit2_&),comp$
+		dbuttons ReadRsc$:(annuler_&),-27,"OK",13
+		ek%=dialog
+		if ek%=0 :goto fin:: :endif
+		provnum%=0
+		do
+			provnum%=provnum%+1
+			if compvalue%(provnum%)=250
+				number%=number%+1
+				if number%=compchosen%
+					compchosen%=provnum%
+					break
+				endif
+			endif
+		until provnum%=5
+		compmax&(provnum%)=compmax&(provnum%)*2
+		compvalue%(provnum%)=120
+		playerowns(1,provnum%)=playerowns(1,provnum%)*2
+		if gametype%=1
+			computerowns(provnum%)=computerowns(provnum%)*2
+		elseif gametype%=2
+			playerowns(2,provnum%)=playerowns(2,provnum%)*2
+		endif
+	endif
+	fin::
+	ggmode 2
+	gat 92+54+(compvalue%(1)-10)/10*(boardwidth%-54-10)/25+4,10+6
+	gcircle 3,1
+	gat 92+54+(compvalue%(2)-10)/10*(boardwidth%-54-10)/25+4,10+16
+	gcircle 3,1
+	gat 92+54+(compvalue%(3)-10)/10*(boardwidth%-54-10)/25+4,10+26
+	gcircle 3,1
+	gat 92+54+(compvalue%(4)-10)/10*(boardwidth%-54-10)/25+4,10+36
+	gcircle 3,1
+	gat 92+54+(compvalue%(5)-10)/10*(boardwidth%-54-10)/25+4,10+46
+	gcircle 3,1
+	ggmode 0
+	printinfodisplay:
+	findefin::
+endp
+proc payerdividendes:
+	local provnum%
+	do
+		provnum%=provnum%+1
+		if compsup%(provnum%)<0
+			playercash(plyr%)=playercash(plyr%)-20*playerowns(plyr%,provnum%)
+			computercash=computercash-computerowns(provnum%)*20
+		elseif compsup%(provnum%)>0
+			playercash(plyr%)=playercash(plyr%)+compsup%(provnum%)*playerowns(plyr%,provnum%)
+			computercash=computercash+compsup%(provnum%)*computerowns(provnum%)
+		endif
+		compsup%(provnum%)=0
+	until provnum%=5
+endp
+proc AIFindBestCompNoRiskNoActions%:
+	local provnum%, actionsnumber, value&(5)
+	local prov2%, best(2)
+	
+	provnum%=0
+	rem === boucle pour la compagnie ===
+	while provnum%<5
+		provnum%=provnum%+1
+		actionsnumber=int(computercash/compvalue%(provnum%))
+		value&(provnum%)=compvalue%(provnum%)
+		prov2%=0
+		rem === 2 boucles pour les cartes ===
+		boucle1::
+		while prov2%<5
+			prov2%=prov2%+1
+			if val(mid$(card$(computercard%(prov2%)),2,1))=provnum% and val(mid$(card$(computercard%(prov2%)),9,1))=1 and mid$(card$(computercard%(prov2%)),3,3)<>" 2x"
+				value&(provnum%)=value&(provnum%)+eval(mid$(card$(computercard%(prov2%)),3,3))
+				goto boucle1::
+			elseif val(mid$(card$(computercard%(prov2%)),2,1))<>provnum% and val(mid$(card$(computercard%(prov2%)),9,1))=0 and mid$(card$(computercard%(prov2%)),3,3)<>" 2x"
+				value&(provnum%)=value&(provnum%)+eval(mid$(card$(computercard%(prov2%)),6,3))
+				goto boucle1::
+			endif
+		endwh
+		prov2%=0
+		boucle2::
+		while prov2%<5
+			prov2%=prov2%+1
+			if val(mid$(card$(computercard%(prov2%)),2,1))=provnum% and val(mid$(card$(computercard%(prov2%)),9,1))=1 and mid$(card$(computercard%(prov2%)),3,3)=" 2x"
+				value&(provnum%)=value&(provnum%)*2
+				goto boucle2::
+			elseif val(mid$(card$(computercard%(prov2%)),2,1))<>provnum% and val(mid$(card$(computercard%(prov2%)),9,1))=0 and mid$(card$(computercard%(prov2%)),3,3)=" 2x"
+				value&(provnum%)=value&(provnum%)*2
+				goto boucle2::
+			endif
+		endwh
+		value&(provnum%)=(value&(provnum%)-compvalue%(provnum%))*actionsnumber
+		if value&(provnum%)>best(1) and actionsnumber>=playerowns(plyr%,provnum%)
+			best(1)=value&(provnum%)
+			best(2)=provnum%
+		endif
+	endwh
+	return best(2)
+endp
+proc AIDeterminHumanWorstAdd%:(AIBestComp%)
+	local provnum%, value&, humanworst 
+	provnum%=0
+	if ailevel%<>1
+		value&=0
+		while provnum%<5
+			provnum%=provnum%+1
+			if playerowns(plyr%,provnum%)>=value& and provnum%<>AIBestComp%
+				value&=playerowns(plyr%,provnum%)
+				humanworst=provnum%
+			endif
+		endwh
+	else
+		value&=1e9
+		provnum%=0
+		while provnum%<5
+			provnum%=provnum%+1
+			if playerowns(plyr%,provnum%)<=value& and provnum%<>AIBestComp%
+				value&=playerowns(plyr%,provnum%)
+				humanworst=provnum%
+			endif
+		endwh
+	endif
+	return humanworst
+endp
+proc AIDeterminHumanWorstMul%:(AIBestComp%)
+	local provnum%, value&, humanworst
+	provnum%=0
+	if AIlevel%<>1
+		value&=0
+		while provnum%<5
+			provnum%=provnum%+1
+			if playerowns(plyr%,provnum%)*compvalue%(provnum%)/2>=value& and provnum%<>AIBestComp%
+				value&=playerowns(plyr%,provnum%)*compvalue%(provnum%)/2
+				humanworst=provnum%
+			endif
+		endwh
+	else	
+		value&=1e9
+		provnum%=0
+		while provnum%<5
+			provnum%=provnum%+1
+			if playerowns(plyr%,provnum%)*compvalue%(provnum%)/2<=value& and provnum%<>AIBestComp%
+				value&=playerowns(plyr%,provnum%)*compvalue%(provnum%)/2
+				humanworst=provnum%
+			endif
+		endwh
+	endif
+	return humanworst
+endp
+proc AIBuyActionsStartNoRisk:(AIBestComp%)
+	local actionsnumber
+	actionsnumber=int(computercash/compvalue%(AIBestComp%))
+	if actionsnumber+computerowns(AIbestComp%)+playerowns(plyr%,AIbestComp%)>compmax&(AIBestComp%)
+		actionsnumber=compmax&(AIBestComp%)-ComputerOwns(AIbestComp%)-playerowns(plyr%,AIbestComp%)
+	endif
+	computerowns(AIBestComp%)=actionsnumber+computerowns(AIBestComp%)
+	computercash=computercash-actionsnumber*compvalue%(AIBestComp%)	
+endp
+proc AIChooseCardToPlayNoRisk%:(AIbestComp%, HWorstAdd%, HWorstMul%)
+	local provnum%, best(5), check(5)
+	provnum%=0
+	do
+		provnum%=provnum%+1
+		best(provnum%)=0
+		check(provnum%)=0
+	until provnum%=5
+	provnum%=0
+	while provnum%<5
+		provnum%=provnum%+1
+		rem === la carte est une carte d'addition ===
+		if mid$(card$(computercard%(provnum%)),3,3)<>" 2x"
+			check(1)=0
+			check(2)=0
+			check(3)=0
+			if val(mid$(card$(computercard%(provnum%)),2,1))<>AIbestComp% and mid$(card$(computercard%(provnum%)),9,1)="0"
+				rem check(1)= valeur de descente de l'humain
+				rem check(2)= numéro de la carte
+				rem check(3)= valeur montante de l'IA
+				check(1)=playerowns(plyr%,val(mid$(card$(computercard%(provnum%)),2,1)))*eval(mid$(card$(computercard%(provnum%)),6,3))
+				check(2)=provnum%
+				check(3)=computerowns(AIbestComp%)*eval(mid$(card$(computercard%(provnum%)),3,3))
+			elseif val(mid$(card$(computercard%(provnum%)),2,1))=AIbestComp% and mid$(card$(computercard%(provnum%)),9,1)="1"
+				check(1)=playerowns(plyr%,Hworstadd%)*eval(mid$(card$(computercard%(provnum%)),6,3))
+				check(2)=provnum%
+				check(3)=computerowns(AIbestComp%)*eval(mid$(card$(computercard%(provnum%)),3,3))
+			endif
+			if check(3)>best(3)
+				best(3)=check(3)
+				best(4)=check(2)
+				best(5)=check(1)
+			elseif check(3)=best(3)
+				if check(1)>=best(5)
+					best(3)=check(3)
+					best(4)=check(2)
+					best(5)=check(1)
+				endif
+			endif
+		endif		
+	endwh
+	rem === L'ordinateur n'a plus de carte d'addition
+	rem === qui l'arrange et joue une carte de multiplication
+	if best(3)=0
+		provnum%=0
+		while provnum%<5
+			provnum%=provnum%+1
+			rem === la carte est une carte de multiplication ===
+			if mid$(card$(computercard%(provnum%)),3,3)=" 2x"
+				check(1)=0
+				check(2)=0
+				check(3)=0
+				if val(mid$(card$(computercard%(provnum%)),2,1))<>AIbestComp% and mid$(card$(computercard%(provnum%)),9,1)="0"
+					check(1)=playerowns(plyr%,val(mid$(card$(computercard%(provnum%)),2,1)))*compvalue%(val(mid$(card$(computercard%(provnum%)),2,1)))/2
+					check(2)=provnum%
+					check(3)=computerowns(AIbestComp%)*compvalue%(AIbestComp%)
+				elseif val(mid$(card$(computercard%(provnum%)),2,1))=AIbestComp% and mid$(card$(computercard%(provnum%)),9,1)="1"
+					check(1)=playerowns(plyr%,Hworstmul%)*compvalue%(hworstmul%)/2
+					check(2)=provnum%
+					check(3)=computerowns(AIbestComp%)*compvalue%(AIbestComp%)
+				endif
+				if check(3)>best(3)
+					best(3)=check(3)
+					best(4)=check(2)
+					best(5)=check(1)
+				elseif check(3)=best(3)
+					if check(1)>=best(5)
+						best(3)=check(3)
+						best(4)=check(2)
+						best(5)=check(1)
+					endif
+				endif
+			endif		
+		endwh
+	endif
+	return best(4)
+endp
+proc AIPlayCardNoRisk:(HworstAdd, HworstMul, AIbestComp, Card)
+	local prov2%, provnum%
+	prov2%=computercard%(Card)
+	if mid$(card$(prov2%),3,3)=" 2x"
+		if val(mid$(card$(prov2%),2,1))=AIbestcomp
+			compvalue%(AIbestComp)=compvalue%(AIbestComp)*2
+			compvalue%(HworstMul)=int(compvalue%(Hworstmul)/20)*10
+		else
+			compvalue%(AIbestComp)=compvalue%(AIbestComp)*2
+			compvalue%(val(mid$(card$(prov2%),2,1)))=int(compvalue%(val(mid$(card$(prov2%),2,1)))/20)*10
+		endif
+	else
+		if mid$(card$(prov2%),3,3)<>"100"
+			if val(mid$(card$(prov2%),2,1))=AIbestcomp
+				compvalue%(AIbestComp)=compvalue%(AIbestComp)+val(mid$(card$(prov2%),3,3))
+				compvalue%(Hworstadd)=compvalue%(HWorstAdd)-val(mid$(card$(prov2%),6,3))
+			else
+				compvalue%(AIbestcomp)=compvalue%(AIbestComp)+val(mid$(card$(prov2%),3,3))
+				compvalue%(val(mid$(card$(prov2%),2,1)))=compvalue%(val(mid$(card$(prov2%),2,1)))-val(mid$(card$(prov2%),6,3))
+			endif
+		else
+			provnum%=0
+			do
+				provnum%=provnum%+1
+				if provnum%=AIbestcomp
+					compvalue%(AIbestcomp)=compvalue%(Aibestcomp)+100
+				else
+					compvalue%(provnum%)=compvalue%(provnum%)-10
+				endif
+			until provnum%=5
+		endif
+	endif
+	rem === à entammer si >250 ou <10
+	provnum%=0
+	do
+		provnum%=provnum%+1
+		if compvalue%(provnum%)>250
+			compsup%(provnum%)=compvalue%(provnum%)-250
+			compvalue%(provnum%)=250
+		elseif compvalue%(provnum%)<10
+			compsup%(provnum%)=-1
+			compvalue%(provnum%)=10
+		endif
+	until provnum%=5
+	payerdividendes:
+endp
+proc AICheckCardsLeft%:(company%)
+	local provnum%, cardsleft%, card2%
+	provnum%=0
+	do
+		provnum%=provnum%+1
+		card2%=computercard%(provnum%)
+		if card2%>=100
+			rem ==si carte risque, sauter l'étape suivante===
+			cardsleft%=0
+			break
+		endif
+		if (mid$(card$(card2%),9,1)="1" and val(mid$(card$(card2%),2,1))=company%) or (mid$(card$(card2%),9,1)<>"1" and val(mid$(card$(card2%),2,1))<>company%)
+			cardsleft%=cardsleft%+1
+		endif
+	until provnum%>=5
+	return cardsleft%
+endp
+proc AISellAllActions:
+	local provnum%
+	provnum%=0
+	do
+		provnum%=provnum%+1
+		computercash=computercash+computerowns(provnum%)*compvalue%(provnum%)
+		computerowns(provnum%)=0
+	until provnum%=5
+endp
+proc AICheckForBetterComp%:(ai%)
+	local provnum%, actionsnumber, value&(5)
+	local prov2%, best(2), cardnum%(5)
+	local cash2
+	cash2=computercash
+	provnum%=0
+	do
+		provnum%=provnum%+1
+		cash2=cash2+computerowns(provnum%)*compvalue%(provnum%)
+	until provnum%>=5
+	provnum%=0
+	rem === boucle pour la compagnie ===
+	while provnum%<5
+		provnum%=provnum%+1
+		actionsnumber=int(cash2/compvalue%(provnum%))
+		value&(provnum%)=compvalue%(provnum%)
+		prov2%=0
+		rem === 2 boucles pour les cartes ===
+		boucle1::
+		while prov2%<5
+			prov2%=prov2%+1
+			if val(mid$(card$(computercard%(prov2%)),2,1))=provnum% and val(mid$(card$(computercard%(prov2%)),9,1))=1 and mid$(card$(computercard%(prov2%)),3,3)<>" 2x"
+				value&(provnum%)=value&(provnum%)+eval(mid$(card$(computercard%(prov2%)),3,3))
+				cardnum%(provnum%)=cardnum%(provnum%)+1
+				goto boucle1::
+			elseif val(mid$(card$(computercard%(prov2%)),2,1))<>provnum% and val(mid$(card$(computercard%(prov2%)),9,1))=0 and mid$(card$(computercard%(prov2%)),3,3)<>" 2x"
+				value&(provnum%)=value&(provnum%)+eval(mid$(card$(computercard%(prov2%)),6,3))
+				cardnum%(provnum%)=cardnum%(provnum%)+1
+				goto boucle1::
+			endif
+		endwh
+		prov2%=0
+		boucle2::
+		while prov2%<5
+			prov2%=prov2%+1
+			if val(mid$(card$(computercard%(prov2%)),2,1))=provnum% and val(mid$(card$(computercard%(prov2%)),9,1))=1 and mid$(card$(computercard%(prov2%)),3,3)=" 2x"
+				value&(provnum%)=value&(provnum%)*2
+				cardnum%(provnum%)=cardnum%(provnum%)+1
+				goto boucle2::
+			elseif val(mid$(card$(computercard%(prov2%)),2,1))<>provnum% and val(mid$(card$(computercard%(prov2%)),9,1))=0 and mid$(card$(computercard%(prov2%)),3,3)=" 2x"
+				value&(provnum%)=value&(provnum%)*2
+				cardnum%(provnum%)=cardnum%(provnum%)+1
+				goto boucle2::
+			endif
+		endwh
+		if cardnum%(provnum%)<>0
+			value&(provnum%)=((value&(provnum%)-compvalue%(provnum%))*actionsnumber)/cardnum%(provnum%)
+		else
+			value&(provnum%)=0
+		endif
+	endwh
+	provnum%=0
+	best(2)=0
+	best(1)=0
+	do
+		provnum%=provnum%+1
+		if value&(provnum%)>=best(2) and cardnum%(provnum%)>=2
+			best(1)=provnum%
+			best(2)=value&(provnum%)
+		endif
+	until provnum%>=5
+	if (best(2)<4*value&(ai%)) or int(cash2/compvalue%(best(1)))<playerowns(plyr%,best(1))
+		best(1)=ai%
+	endif
+	return best(1)
+endp
+proc AIPlays:
+	local best(5), boughtonfirstpart%(5)
+	local goodcardsleft%, humanworst(2)
+	local check(3), buffer%, sellcurrentcomp%
+	sellcurrentcomp%=0
+	rem === L'ordinateur n'a pas de carte risque en main
+	if computercard%(1)<100 and computercard%(2)<100 and computercard%(3)<100 and computercard%(4)<100 and computercard%(5)<100
+		if  AIpreviouswasrisk%=1
+			AIsellallactions:
+		endif
+		if computerowns(1)+computerowns(2)+computerowns(3)+computerowns(4)+computerowns(5)=0
+			best(2)=AIFindBestCompNoRiskNoActions%:
+			AIcurrent%=best(2)
+		else
+			best(2)=AICheckForBetterComp%:(aicurrent%)
+			aicurrent%=best(2)
+			AISellAllActions:			
+		endif	
+		AIcardsleft%=AIcheckcardsleft%:(best(2))
+		humanworst(1)=AIdeterminhumanworstadd%:(best(2))
+		humanworst(2)=AIdeterminhumanworstmul%:(best(2))
+		if aicardsleft%>1
+			AIBuyActionsStartNoRisk:(best(2))
+		else 
+			sellcurrentcomp%=1
+		endif
+		boughtonfirstpart%(best(2))=1
+		best(4)=AIChooseCardToPlayNoRisk%:(best(2), humanworst(1), humanworst(2))		
+		updateboard:
+		AIplayCardNorisk:(humanworst(1),humanworst(2),best(2),best(4))
+		
+		buffer%=gcreate(0,0,60,80,0,$100+colormode%)
+		drawcard:(card$(computercard%(best(4))),computercard%(best(4)),buffer%)
+		guse 1
+		gat 284,75
+		gcopy buffer%,0,0,60,80,3
+		gclose buffer%
+		printinfodisplay:
+		updateboard:
+		
+		computercard%(best(4))=aipiochecarte%:(1)
+		if sellcurrentcomp%=1
+			AIsellAllActions:
+			printinfodisplay:
+		endif
+	else
+		rem === L'ordinateur a une carte risque en main ===
+		best(1)=AIfindRiskCard:
+		AISellAllActions:
+		AIBuyActionsRisk:(card$(computercard%(best(1))-100))
+		AIpreviouswasrisk%=1	
+		
+		buffer%=gcreate(0,0,60,80,0,$100+colormode%)
+		drawrisk:(card$(computercard%(best(1))-100),computercard%(best(1))-100,buffer%)
+		guse 1
+		gat 284,75
+		gcopy buffer%,0,0,60,80,3
+		gclose buffer%
+		printinfodisplay:
+		updateboard:
+		
+		AIChangeValuesRisk:(card$(computercard%(best(1))-100))
+		updateboard:
+		printinfodisplay:
+		computercard%(best(1))=aipiochecarte%:(1)
+	endif
+endp
+proc AIPiocheCarte%:(riskallowed%)
+	local carte%, provnum%, card%(5), nummax%
+	if AIlevel%<3
+		carte%=piochecarte%:(riskallowed%)
+	else
+		provnum%=0
+		while provnum%<5
+			provnum%=provnum%+1
+			card%(provnum%)=piochecarte%:(riskallowed%)
+			if card%(provnum%)<0
+				carte%=card%(provnum%-1)
+				nummax%=provnum%-1
+				break
+			endif
+			if card%(provnum%)>100
+				carte%=card%(provnum%)
+				nummax%=provnum%
+				break
+			elseif mid$(card$(card%(provnum%)),3,3)="100" or mid$(card$(card%(provnum%)),3,3)=" 2x"
+				carte%=card%(provnum%)
+				nummax%=provnum%
+				break
+			endif
+			if provnum%=5
+				carte%=card%(provnum%)
+				nummax%=provnum%
+			endif
+		endwh
+		rem === remettre les carte tirées mais pas ===
+		rem === utilisées dans le talon ===
+		provnum%=1
+		while provnum%<nummax%
+			if card%(provnum%)>100
+				card%(provnum%)=card%(provnum%)-100
+			endif
+			cardtaken%(card%(provnum%))=0
+			numbercardstaken%=numbercardstaken%-1
+			provnum%=provnum%+1
+		endwh
+	endif
+	gfont 268435952
+	guse 1
+	gat 370,125
+	gcolor 0,0,0
+	gprintb gen$(67-numbercardstaken%,2),30,3,0
+	return carte%
+endp
+proc AIChangeValuesRisk:(card$)
+	local provnum%
+	do
+		provnum%=provnum%+1
+		compvalue%(provnum%)=compvalue%(provnum%)+((val(mid$(card$,2+provnum%*3-3,1))*2)-1)*val(mid$(card$,3+provnum%*3-3,2))
+		if compvalue%(provnum%)>250
+			compsup%(provnum%)=compvalue%(provnum%)-250
+			compvalue%(provnum%)=250
+		elseif compvalue%(provnum%)<10
+			compsup%(provnum%)=-1
+			compvalue%(provnum%)=10
+		endif
+	until provnum%>=5
+	payerdividendes:
+endp
+proc AIBuyActionsRisk:(card$)
+	local total, provnum%, a(5), somme
+	provnum%=0
+	do
+		provnum%=provnum%+1
+		a(provnum%)=val(mid$(card$,2+provnum%*3-3,3))
+		if a(provnum%)<=150 or a(provnum%)>=200
+			a(provnum%)=0
+		else
+			a(provnum%)=a(provnum%)-100
+		endif
+		if a(provnum%)<>0
+			a(provnum%)=(1/a(provnum%))*compvalue%(provnum%)
+		endif
+	until provnum%=5
+	somme=a(1)+a(2)+a(3)+a(4)+a(5)
+	if somme=0
+		goto rienacheter::
+	endif
+	total=computercash/somme
+	provnum%=0
+	do
+		provnum%=provnum%+1
+		a(provnum%)=intf(total*a(provnum%)/compvalue%(provnum%))
+		if computerowns(provnum%)+playerowns(plyr%,provnum%)+a(provnum%)>=compmax&(provnum%)
+			a(provnum%)=compmax&(provnum%)-computerowns(provnum%)-playerowns(plyr%,provnum%)
+		endif
+		computerowns(provnum%)=computerowns(provnum%)+a(provnum%)
+		computercash=computercash-a(provnum%)*compvalue%(provnum%)
+	until provnum%=5
+	rienacheter::
+endp
+proc AIFindRiskCard:
+	local provnum%
+	provnum%=0
+	do
+		provnum%=provnum%+1
+		if computercard%(provnum%)>=100
+			return provnum%
+		endif
+	until provnum%>=5
+endp
+proc updateboard:
+	ggmode 2
+	gat 92+54+(compvalue%(1)-10)/10*(boardwidth%-54-10)/25+4,10+6
+	gcircle 3,1
+	gat 92+54+(compvalue%(2)-10)/10*(boardwidth%-54-10)/25+4,10+16
+	gcircle 3,1
+	gat 92+54+(compvalue%(3)-10)/10*(boardwidth%-54-10)/25+4,10+26
+	gcircle 3,1
+	gat 92+54+(compvalue%(4)-10)/10*(boardwidth%-54-10)/25+4,10+36
+	gcircle 3,1
+	gat 92+54+(compvalue%(5)-10)/10*(boardwidth%-54-10)/25+4,10+46
+	gcircle 3,1
+endp
+proc savedoc:(filename$)
+	local records%, provnum%, off%(6)
+	onerr tbarsuite::
+	tbarsettitle:(right$(parse$(filename$,"",off%()),len(filename$)-off%(4)+1))
+	tbarsuite::
+	onerr off
+	trap close
+	if exist(filename$)=-1
+			trap delete filename$
+	endif
+	setdoc	filename$
+	trap create """"+filename$+"""",a,gnrl$,plyr1$,plyr2$,ai$,name$
+	begintrans
+	records%=count
+	if records%>0
+		modify
+	elseif records%=0
+		insert
+	endif
+	a.gnrl$=""
+	a.plyr1$=""
+	a.plyr2$=""
+	a.ai$=""
+	a.name$=""
+	rem === Sauver les cartes prises ===
+	provnum%=0
+	do
+		provnum%=provnum%+1
+		a.gnrl$=a.gnrl$+gen$(cardtaken%(provnum%),1)
+	until provnum%>=67
+	rem === Sauver la valeur des compagnies  et le ===
+	rem === nombre maximal autorisé à acheter ===
+	provnum%=0
+	do 
+		provnum%=provnum%+1
+		a.gnrl$=a.gnrl$+gen$(compvalue%(provnum%),-3)+gen$(compmax&(provnum%),-10)+gen$(atstartofturn&(provnum%),-10)
+	until provnum%>=5
+	a.gnrl$=a.gnrl$+gen$(firsttimeofturn%,1)
+	a.gnrl$=a.gnrl$+gen$(cardplayed%(2),1)
+	a.gnrl$=a.gnrl$+gen$(ailevel%,1)+gen$(gametype%,1)
+	a.gnrl$=a.gnrl$+gen$(plyr%,1)
+	a.name$=a.name$+playername$(1)+rept$(" ",10-len(playername$(1)))
+	a.name$=a.name$+playername$(2)+rept$(" ",10-len(playername$(2)))
+	rem === Sauvegarde des attributs du joueur 1===
+	provnum%=1
+	do
+		provnum%=provnum%+1
+		a.plyr1$=a.plyr1$+gen$(cardused%(1,1,provnum%),-3)+gen$(cardused%(1,2,provnum%),1)
+	until provnum%>=6
+	a.plyr1$=a.plyr1$+gen$(playerowns(1,1),-10)+gen$(playerowns(1,2),-10)+gen$(playerowns(1,3),-10)+gen$(playerowns(1,4),-10)+gen$(playerowns(1,5),-10)
+	a.plyr1$=a.plyr1$+gen$(playercash(1),-15)
+	rem === Sauvegarde des attributs du joueur 2===
+	provnum%=1
+	do
+		provnum%=provnum%+1
+		a.plyr2$=a.plyr2$+gen$(cardused%(2,1,provnum%),-3)+gen$(cardused%(2,2,provnum%),1)
+	until provnum%>=6
+	a.plyr2$=a.plyr2$+gen$(playerowns(2,1),-10)+gen$(playerowns(2,2),-10)+gen$(playerowns(2,3),-10)+gen$(playerowns(2,4),-10)+gen$(playerowns(2,5),-10)
+	a.plyr2$=a.plyr2$+gen$(playercash(2),-15)
+	rem === Sauvegarde des attributs de l'ordinateur ===
+	provnum%=0
+	do
+		provnum%=provnum%+1
+		a.ai$=a.ai$+gen$(computercard%(provnum%),-3)
+	until provnum%>=5
+	a.ai$=a.ai$+gen$(computerowns(1),-10)+gen$(computerowns(2),-10)+gen$(computerowns(3),-10)+gen$(computerowns(4),-10)+gen$(computerowns(5),-10)
+	a.ai$=a.ai$+gen$(computercash,-15)
+	a.ai$=a.ai$+gen$(aicurrent%,1)+gen$(AIcardsleft%,1)+gen$(AIpreviouswasrisk%,1)
+	put
+	committrans
+endp
+proc opendoc:(filename$)
+	local provnum%, off%(6)
+	onerr tbarsuite::
+	tbarsettitle:(right$(parse$(filename$,"",off%()),len(filename$)-off%(4)+1))
+	tbarsuite::
+	onerr off
+	setdoc filename$
+	trap open """"+filename$+"""",a,gnrl$,plyr1$,plyr2$,ai$,name$
+	rem === Sauver les cartes prises ===
+	provnum%=0
+	do
+		provnum%=provnum%+1
+		cardtaken%(provnum%)=eval(mid$(a.gnrl$,provnum%,1))
+		if cardtaken%(provnum%)<>0
+			numbercardstaken%=numbercardstaken%+1
+		endif
+	until provnum%>=67
+	provnum%=0
+	do 
+		provnum%=provnum%+1
+		compvalue%(provnum%)=eval(mid$(a.gnrl$,68+(provnum%-1)*23,3))
+		compmax&(provnum%)=eval(mid$(a.gnrl$,71+(provnum%-1)*23,10))
+		atstartofturn&(provnum%)=eval(mid$(a.gnrl$,81+(provnum%-1)*23,10))
+	until provnum%>=5
+	firsttimeofturn%=eval(mid$(a.gnrl$,183,1))
+	cardplayed%(2)=eval(mid$(a.gnrl$,184,1))
+	ailevel%=eval(mid$(a.gnrl$,185,1))
+	gametype%=eval(mid$(a.gnrl$,186,1))
+	plyr%=eval(mid$(a.gnrl$,187,1))
+	playername$(1)=parsename$:(mid$(a.name$,1,10))
+	playername$(2)=parsename$:(mid$(a.name$,11,10))
+	rem === Restauration des attributs du joueur 1 ===
+	provnum%=1
+	do
+		provnum%=provnum%+1
+		cardused%(1,1,provnum%)=eval(mid$(a.plyr1$,1+(provnum%-2)*4,3))
+		cardused%(1,2,provnum%)=eval(mid$(a.plyr1$,4+(provnum%-2)*4,1))
+	until provnum%>=6
+	playerowns(1,1)=eval(mid$(a.plyr1$,21,10))
+	playerowns(1,2)=eval(mid$(a.plyr1$,31,10))
+	playerowns(1,3)=eval(mid$(a.plyr1$,41,10))
+	playerowns(1,4)=eval(mid$(a.plyr1$,51,10))
+	playerowns(1,5)=eval(mid$(a.plyr1$,61,10))
+	playercash(1)=eval(right$(a.plyr1$,15))
+	rem === Restauration des attributs du joueur 1 ===
+	provnum%=1
+	do
+		provnum%=provnum%+1
+		cardused%(2,1,provnum%)=eval(mid$(a.plyr2$,1+(provnum%-2)*4,3))
+		cardused%(2,2,provnum%)=eval(mid$(a.plyr2$,4+(provnum%-2)*4,1))
+	until provnum%>=6
+	playerowns(2,1)=eval(mid$(a.plyr2$,21,10))
+	playerowns(2,2)=eval(mid$(a.plyr2$,31,10))
+	playerowns(2,3)=eval(mid$(a.plyr2$,41,10))
+	playerowns(2,4)=eval(mid$(a.plyr2$,51,10))
+	playerowns(2,5)=eval(mid$(a.plyr2$,61,10))
+	playercash(2)=eval(right$(a.plyr2$,15))
+	rem === restauration des attributs de l'ordinateur ===
+	provnum%=0
+	do
+		provnum%=provnum%+1
+		computercard%(provnum%)=eval(mid$(a.ai$,1+(provnum%-1)*3,3))
+	until provnum%>=5
+	computerowns(1)=eval(mid$(a.ai$,16,10))
+	computerowns(2)=eval(mid$(a.ai$,26,10))
+	computerowns(3)=eval(mid$(a.ai$,36,10))
+	computerowns(4)=eval(mid$(a.ai$,46,10))
+	computerowns(5)=eval(mid$(a.ai$,56,10))
+	computercash=eval(mid$(a.ai$,66,15))
+	aicurrent%=eval(mid$(a.ai$,81,1))
+	aicardsleft%=eval(mid$(a.ai$,82,1))
+	aipreviouswasrisk%=eval(mid$(a.ai$,83,1))
+	if firsttimeofturn%=0
+		cardplayed%(1)=1
+	else
+		cardplayed%(1)=0
+	endif
+	loadnewgame:
+endp
+proc parsename$:(string$)
+	local provnum%, name$(10)
+	name$=string$
+	while right$(name$,1)=" "
+		name$=left$(name$,len(name$)-1)
+	endwh
+	return name$
+endp
+proc loadnewgame:
+	local cardwin%, provnum%
+	provnum%=1
+	do
+		provnum%=provnum%+1
+		trap gclose provnum%
+	until provnum%>=6
+	guse 1
+	gcls
+	gborder 0
+	gat 92,10
+	drawboard:(compvalue%(1),compvalue%(2),compvalue%(3),compvalue%(4),compvalue%(5))
+	printinfodisplay:
+	provnum%=0
+	do
+		provnum%=provnum%+1
+		cardwin%=gcreate(10,10+(height%-20-80)*(provnum%-1)/4,60,80,1,$100+colormode%)
+		if cardused%(plyr%,1,provnum%+1)<100
+			drawcard:(card$(cardused%(plyr%,1,provnum%+1)),cardused%(plyr%,1,provnum%+1),cardwin%)
+		else
+			drawrisk:(card$(cardused%(plyr%,1,provnum%+1)-100),cardused%(plyr%,1,provnum%+1)-100,cardwin%)
+		endif
+	until provnum%=5
+	gfont 268435952
+	guse 1
+	gat 370,125
+	gcolor 0,0,0
+	gprintb gen$(67-numbercardstaken%,2),30,3,0
+endp
+proc procs:
+	savedoc:(filename$)
+	readsetini$:(filename$,0)
+	giprint ReadRsc$:(sauv_&)
+endp
+proc proms:
+	local file$(255)
+	file$=filename$
+	filename$=saveasfiledialog$:("C:\Documents\",#0)
+	if filename$=""
+		filename$=file$
+		goto fin::
+	endif
+	savedoc:(filename$)
+	readsetini$:(filename$,0)
+	giprint ReadRsc$:(sauv_&)
+	fin::
+endp
+proc proco:
+	local file$(255)
+	file$=filename$
+	filename$=OPENFILEDIALOG$:("C:\Documents\",0,0,0)
+	if filename$=""
+		filename$=file$
+		goto fin::
+	endif	
+	opendoc:(filename$)
+	readsetini$:(filename$,0)
+	finalfirstload:
+	fin::
+endp
+proc readsetini$:(file$,nosave%)
+	local ini$(255)
+	ini$="c:\system\apps\Actionnaire\Actionnaire.ini"
+	trap open """"+ini$+"""",z,file$
+	if err=0
+		ini$=z.file$
+		if nosave%=0
+			trap close
+			ini$="c:\system\apps\Actionnaire\Actionnaire.ini"
+			delete ini$
+			trap create """"+ini$+"""",z,file$
+			begintrans
+			insert
+			z.file$=file$
+			put
+			committrans
+		endif
+		close
+		return ini$
+	endif
+	if exist(ini$)
+		delete ini$
+	endif
+	trap create """"+ini$+"""",z,file$
+	z.file$=file$
+	append
+	close
+	return file$
+endp
+proc runini%:(sysdefault$)
+	local inidefault$(255)
+	inidefault$=readsetini$:(sysdefault$,1)
+	if exist(inidefault$)
+		filename$=inidefault$
+		opendoc:(inidefault$)
+		return 0
+	endif
+	if exist(sysdefault$)
+		filename$=sysdefault$
+		opendoc:(sysdefault$)
+		return 0
+	endif
+	filename$=sysdefault$
+	savedoc:(sysdefault$)
+	return 1
+endp
+proc drawsplash:
+	local bitmap%, provnum%
+	guse 1
+	gcls
+	gborder 0
+	gat gwidth/2-58,35
+	ggrey 1
+	gprint "L'Actionnaire"
+	gat gwidth/2-63,30
+	ggrey 0
+	Gprint "L'Actionnaire"
+	gat 10,gheight-20
+	gprint ReadRSc$:(par_&)
+	gat gwidth-180,gheight-20
+	gprint "npiguet@hotmail.com"
+	gat gwidth/2-60,gheight-45
+	rem Numéro de version ---------------------
+	gprint "Version 0.1"
+	rem Numéro de version ---------------------
+	ggrey 1
+	gat gwidth/2-30,gheight-25
+	gprint "Bêta"
+	provnum%=-1
+	do
+		provnum%=provnum%+1
+		bitmap%=gloadbit("C:\system\apps\Actionnaire\logos.mbm",0,provnum%)
+		guse 1
+		gat gwidth/2-127+(provnum%*50),gheight/2-15
+		gcopy bitmap%,0,0,30,30,0
+		gclose bitmap%
+	until provnum%>=4
+	gfont 268435954
+	gat 5,gheight-8
+	ggrey 0
+	if left$(ReadRsc$:(par_&),1)="P"
+		gprint "Version "+machinename$:
+	else
+		gprint machinename$:+" Version"
+	endif
+endp
+proc setvaluesfornewgame:
+	local provnum%
+	rem === remise à zéro des variables ===
+	provnum%=0
+	do
+		provnum%=provnum%+1
+		cardtaken%(provnum%)=0
+	until provnum%>=67
+	computercash=1000
+	playercash(1)=1000
+	playercash(2)=1000
+	plyr%=1
+	firsttimeofturn%=1
+	aicurrent%=0
+	aicardsleft%=0
+	aipreviouswasrisk%=0
+	numbercardstaken%=0
+	provnum%=0
+	do
+		provnum%=provnum%+1
+		computerowns(provnum%)=0
+		playerowns(1,provnum%)=0
+		playerowns(2,provnum%)=0
+		compvalue%(provnum%)=100
+		compsup%(provnum%)=0
+		compmax&(provnum%)=10000
+		atstartofturn&(provnum%)=0
+		computercard%(provnum%)=0
+	until provnum%>=5
+	cardplayed%(1)=0
+	cardplayed%(2)=0
+	rem === on pioche les cartes pour tout le monde
+	provnum%=0
+	do
+		provnum%=provnum%+1
+		cartepiochee%=piochecarte%:(0)
+		cardused%(1,1,provnum%+1)=cartepiochee%
+		cardused%(1,2,provnum%+1)=0
+		if gametype%=1
+			cartepiochee%=aipiochecarte%:(0)
+			computercard%(provnum%)=cartepiochee%
+		elseif gametype%=2
+			cartepiochee%=piochecarte%:(0)
+			cardused%(2,1,provnum%+1)=cartepiochee%
+			cardused%(2,2,provnum%+1)=0
+		endif
+	until provnum%=5
+endp
+proc procn:
+	local file$(255)
+	choosegametype%:(1)
+	savedoc:(filename$)
+	setvaluesfornewgame:
+	file$=saveasfiledialog$:("C:\Documents\",#0)
+	if file$=""
+		goto fin::
+	endif
+	filename$=file$
+	savedoc:(filename$)
+	readsetini$:(filename$,0)
+	loadnewgame:
+	fin::
+endp
+proc procq:
+	savedoc:(filename$)
+	trap close
+	onerr helpclosed::
+	if helpthread&<>0
+		EndTask&:(helpthread&,0)
+	endif
+	helpclosed::
+	onerr off
+	stop
+endp
+proc proma:
+	local helpfile$(255)
+	Helpfile$="C:\system\apps\actionnaire\actionnaire.hlp"
+	if exist(helpfile$)
+		if helpthread&<>0
+			onerr nolongeropen::
+			setforegroundbythread&:(helpthread&,0)
+		else
+			nolongeropen::
+			onerr off
+			helpthread&=RUNAPP&:("Data",helpfile$,"",0)
+		endif
+	else
+		giprint ReadRsc$:(helpnotfound_&)
+	endif
+endp
+proc finalfirstload:
+	local provnum%
+	provnum%=1
+	do
+		provnum%=provnum%+1
+		if cardused%(plyr%,1,provnum%)>=100
+			gorder provnum%,1
+			break
+		endif
+	until provnum%>=6
+	if firsttimeofturn%=0
+		trap gclose cardplayed%(2)
+	endif
+endp
+proc proca:
+	local idabout%, idpict%, eve&(16), s%
+	idabout%=gcreate(width%/2-155,height%/2-75,310,150,1,$410+colormode%)
+	guse idabout%
+	gxborder 2,$94
+	gFONT 11 : gSTYLE 1
+	gAT 60,20
+	gPRINTB ReadRsc$:(Freepocpres_&),240,3
+	idpict%=gloadbit("C:\system\apps\actionnaire\picture.mbm")
+	guse idabout%
+	gat 20,15
+	gcopy idpict%,0,0,60,60,0
+	gclose idpict%
+	gat 120,65
+	gfont 268435959
+	gstyle 9
+	gprint "Actionnaire"
+	gstyle 0
+	gat 50,90
+	gfont 268435955
+	gprint "v 0.1 Bêta © Nicolas Piguet 2000-2001"
+	gat 10,95
+	glineto 300,95
+	gat 10,134
+	gfont 268435954
+	gprintb "E-Mail: npiguet@hotmail.com",290,3,0,0,0
+	gfont 268435952
+	gat 10,121
+	gprintb "http://www.freepoc.org/nicolas",290,3,0,0,0
+	gat 10,107
+	gprintb "http://www.freepoc.org",290,3,0,0,0
+	gfont 268435954
+	gat 5,142
+	ggrey 0
+	if left$(ReadRsc$:(par_&),1)="P"
+		gprint "Version "+machinename$:
+	else
+		gprint machinename$:+" Version"
+	endif
+	DO
+		GETEVENTA32 s%,eve&()
+		GETEVENTC (s%)
+		PAUSE 2
+	UNTIL eve&(1)=&408 OR eve&(1)=&406
+	eve&(1)=0
+	gclose idabout%
+	idabout%=gcreate(width%/2-155,height%/2-75,310,150,1,$410+colormode%)
+	idpict%=gloadbit("C:\system\apps\Actionnaire\freepoc.mbm")
+	guse idabout%
+	gXBORDER 2,$94
+	
+	REM Draw 2nd window
+	gAT 70,21
+	gCOPY idpict%,0,0,170,50,3
+	gCLOSE idpict%
+	gFONT 11 : gSTYLE 1
+	gAT 6,19
+	gPRINTB "Free Your Palmtop... Free Yourself...",300,3
+	gAT 5,84 : gFONT 11 : gSTYLE 1
+	gPRINTB "www.freepoc.de",300,3
+	gAT 10,91 : gLINEBY 290,0
+	gAT 5,110 : gFONT 10 : gSTYLE 0
+	gPRINTB ReadRsc$:(freepoc1_&),300,3
+	gAT 5,123
+	gPRINTB ReadRsc$:(freepoc2_&),300,3
+	gAT 5,136
+	gPRINTB ReadRsc$:(freepoc3_&),300,3
+	
+	REM Make it visible
+	gVISIBLE ON
+	DO
+		GETEVENTA32 s%,eve&()
+		GETEVENTC (s%)
+		PAUSE 2
+	UNTIL eve&(1)=&408 OR eve&(1)=&406
+	if eve&(1)=&406
+		pause 0
+	endif
+	gclose idabout%
+endp
